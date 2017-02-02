@@ -452,6 +452,15 @@ class FileType(FieldSet):
             yield String(self, "compat_brand[]", 4, "Compatible brand")
 
 
+class SegmentType(FieldSet):
+
+    def createFields(self):
+        yield String(self, "brand", 4, "Major brand")
+        yield UInt32(self, "version", "Version")
+        while not self.eof:
+            yield String(self, "compat_brand[]", 4, "Compatible brand")
+
+
 class MovieFragmentHeader(FieldSet):
 
     def createFields(self):
@@ -746,9 +755,57 @@ class SampleToChunkTable(FieldSet):
             yield UInt32(self, "sample_description_index[]")
 
 
+class SubSampleInformation(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        yield UInt32(self, "entry_count")
+        for i in range(self["entry_count"].value):
+            if self["version"].value ==1: 
+                yield SubSampleEntryV1(self, "SubSampleEntry[]")
+            else:
+                yield SubSampleEntryV0(self, "SubSampleEntry[]")
+
+
+class SubSampleEntryV1(FieldSet):
+
+    def createFields(self):
+        yield UInt32(self, "sample_delta")
+        yield UInt16(self, "subsample_count")
+        for j in range(self["subsample_count"].value):
+            yield UInt32(self, "subsample_size[]")
+            yield UInt8(self, "subsample_priority[]")
+            yield UInt8(self, "discardable[]")
+            yield UInt32(self, "codec_specific_parameters[]")
+
+
+class SubSampleEntryV0(FieldSet):
+
+    def createFields(self):
+        yield UInt32(self, "sample_delta")
+        yield UInt16(self, "subsample_count")
+        for j in range(self["subsample_count"].value):
+            yield UInt16(self, "subsample_size[]")
+            yield UInt8(self, "subsample_priority[]")
+            yield UInt8(self, "discardable[]")
+            yield RawBytes(self, "codec_specific_parameters[]", 4)
+
+
+class TrackFragmentDecodeTime(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        if self["version"].value == 1:
+            yield UInt64(self, "base_media_decode_time")
+        else:
+            yield UInt32(self, "base_media_decode_time")
+
 class Atom(FieldSet):
     tag_info = {
         "ftyp": (FileType, "file_type", "File type and compatibility"),
+        "styp": (SegmentType, "segment_type", "Segment type and compatibility"),
         # pdin: progressive download information
         # pnot: movie preview (old QT spec)
         "moov": (AtomList, "movie", "Container for all metadata"),
@@ -794,7 +851,7 @@ class Atom(FieldSet):
                             # sdtp: independent and disposable samples
                             # sbgp: sample-to-group
                             # sgpd: sample group description
-                            # subs: sub-sample information
+                            "subs": (SubSampleInformation, "subs", "subsample information"),
             # ctab color table (old QT spec)
             # mvex: movie extends
                 # mehd: movie extends header
@@ -808,6 +865,7 @@ class Atom(FieldSet):
                 # sdtp: independent and disposable samples
                 # sbgp: sample-to-group
                 # subs: sub-sample information
+                "tfdt": (TrackFragmentDecodeTime, "tfdt", "track fragment decode time"),
         "mfra": (AtomList, "mfra", "movie fragment random access"),
             "tfra": (TrackFragmentRandomAccess, "tfra", "track fragment random access"),
             "mfro": (MovieFragmentRandomAccessOffset, "mfro", "movie fragment random access offset"),
@@ -940,7 +998,7 @@ class MovFile(Parser):
         if size < 8:
             return "Invalid first atom size"
         tag = self.stream.readBytes(4 * 8, 4)
-        if tag not in (b"ftyp", b"moov", b"free"):
+        if tag not in (b"ftyp", b"moov", b"free", b"moof", b"styp"):
             return "Unknown MOV file type"
         return True
 
