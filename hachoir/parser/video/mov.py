@@ -618,8 +618,10 @@ class SampleCompositionTimeTable(FieldSet):
         yield UInt32(self, "count", description="Total entries in sample time table")
         for i in range(self['count'].value):
             yield UInt32(self, "sample_count[]", "Number of consecutive samples with this offset")
-            yield UInt32(self, "sample_offset[]", "Difference between decode time and composition time of this sample, in time-units")
-
+            if self["version"].value == 1:
+                yield Int32(self, "sample_offset[]", "Difference between decode time and composition time of this sample, in time-units")
+            else:
+                yield UInt32(self, "sample_offset[]", "Difference between decode time and composition time of this sample, in time-units")
 
 class ChunkOffsetTable(FieldSet):
 
