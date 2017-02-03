@@ -843,6 +843,78 @@ class TrackFragmentDecodeTime(FieldSet):
             yield UInt32(self, "base_media_decode_time")
 
 
+class TrackFragmentRun(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        # flags
+        yield Bits(self, "sample_composition_time_offsets_present", 13)
+        yield Bit(self, "sample_flags_present")
+        yield Bit(self, "sample_size_present")
+        yield Bit(self, "sample_duration_present")
+        yield Bits(self, "first_sample_flags_present", 6)
+        yield Bits(self, "data_offset_present", 2)
+
+        yield UInt32(self, "sample_count")
+
+        if (self["data_offset_present"].value):
+            yield Int32(self, "data_offset")
+        if (self["first_sample_flags_present"].value):
+            yield Bits(self, "is_leading", 6)
+            yield Bits(self, "sample_depends_on", 2)
+            yield Bits(self, "sample_is_depended_on", 2)
+            yield Bits(self, "sample_has_redundancy", 2)
+            yield Bits(self, "sample_is_non_sync_sample", 4)
+            yield UInt16(self, "sample_degradation_priority")
+
+        for i in range(self["sample_count"].value):
+            yield TrackFragmentRunSample(self, "sample[]")
+
+
+class TrackFragmentRunSample(FieldSet):
+
+    def createFields(self):
+        if (self.parent["sample_duration_present"].value):
+            yield UInt32(self, "sample_duration[]")
+        if (self.parent["sample_size_present"].value):
+            yield UInt32(self, "sample_size[]")
+        if (self.parent["sample_flags_present"].value):
+            yield UInt32(self, "sample_flags[]")
+        if (self.parent["sample_composition_time_offsets_present"].value):
+            if (self.parent["version"].value == 0):
+                yield UInt32(self, "sample_composition_time_offset[]")
+            else:
+                yield Int32(self, "sample_composition_time_offset[]")
+
+
+class SegmentIndex(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+
+        yield UInt32(self, "reference_ID")
+        yield UInt32(self, "timescale")
+
+        if (self["version"].value == 0):
+            yield UInt32(self, "earliest_presentation_time")
+            yield UInt32(self, "first_offset")
+        else:
+            yield UInt64(self, "earliest_presentation_time")
+            yield UInt64(self, "first_offset")
+
+        yield NullBits(self, "pad[]", 16)
+        yield UInt16(self, "reference_count")
+
+        for i in range(self["reference_count"].value):
+            yield Bit(self, "reference_type[]")
+            yield Bits(self, "referenced_size[]", 31)
+            yield UInt32(self, "subsegment_duration[]")
+            yield Bit(self, "starts_with_SAP[]")
+            yield Bits(self, "SAP_type[]", 3)
+            yield Bits(self, "SAP_delta_time[]", 28)
+
+
 class Atom(FieldSet):
     tag_info = {
         "ftyp": (FileType, "file_type", "File type and compatibility"),
@@ -904,6 +976,7 @@ class Atom(FieldSet):
                 # tfhd: track fragment header
                 "tfhd": (TrackFragmentHeader, "tfhd", "track fragment header"),
                 # trun: track fragment run
+                "trun": (TrackFragmentRun, "trun", "track fragment run"),
                 # sdtp: independent and disposable samples
                 # sbgp: sample-to-group
                 # subs: sub-sample information
@@ -970,6 +1043,7 @@ class Atom(FieldSet):
         "tags": (AtomList, "tags", "File tags"),
         "tseg": (AtomList, "tseg", "tseg"),
         "chpl": (NeroChapters, "chpl", "Nero chapter data"),
+        "sidx": (SegmentIndex, "sidx", "Segment Index"),
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
     tag_desc = [item[1] for item in tag_info]
