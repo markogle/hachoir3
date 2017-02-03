@@ -797,15 +797,12 @@ class TrackFragmentHeader(FieldSet):
 
     def createFields(self):
         yield UInt8(self, "version")
-        yield NullBits(self, "flagspad[]", 6)
-        yield Bit(self, "default_base_is_moof")
+        yield Bits(self, "default_base_is_moof", 7)
         yield Bit(self, "duration_is_empty")
-        yield NullBits(self, "flagspad[]", 10)
-        yield Bit(self, "default_sample_flags_present")
+        yield Bits(self, "default_sample_flags_present", 11)
         yield Bit(self, "default_sample_size_present")
         yield Bit(self, "default_sample_duration_present")
-        yield NullBits(self, "flagspad[]", 1)
-        yield Bit(self, "sample_description_index_present")
+        yield Bits(self, "sample_description_index_present", 2)
         yield Bit(self, "base_data_offset_present")
 
         yield UInt32(self, "track_id")
@@ -819,16 +816,11 @@ class TrackFragmentHeader(FieldSet):
         if (self["default_sample_size_present"].value):
             yield UInt32(self, "default_sample_size")
         if (self["default_sample_flags_present"].value):
-            yield NullBits(self, "pad[]", 5)
-            yield Bit(self, "is_leading")
-            yield Bit(self, "pad[]")
-            yield Bit(self, "sample_depends_on")
-            yield Bit(self, "pad[]")
-            yield Bit(self, "sample_is_depended_on")
-            yield Bit(self, "pad[]")
-            yield Bit(self, "sample_has_redundancy")
-            yield NullBits(self, "pad[]", 3)
-            yield Bit(self, "sample_is_non_sync_sample")
+            yield Bits(self, "is_leading", 6)
+            yield Bits(self, "sample_depends_on", 2)
+            yield Bits(self, "sample_is_depended_on", 2)
+            yield Bits(self, "sample_has_redundancy", 2)
+            yield Bits(self, "sample_is_non_sync_sample", 4)
             yield UInt16(self, "sample_degradation_priority")
 
 
