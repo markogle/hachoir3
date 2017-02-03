@@ -819,7 +819,17 @@ class TrackFragmentHeader(FieldSet):
         if (self["default_sample_size_present"].value):
             yield UInt32(self, "default_sample_size")
         if (self["default_sample_flags_present"].value):
-            yield UInt32(self, "default_sample_flags")
+            yield NullBits(self, "pad[]", 5)
+            yield Bit(self, "is_leading")
+            yield Bit(self, "pad[]")
+            yield Bit(self, "sample_depends_on")
+            yield Bit(self, "pad[]")
+            yield Bit(self, "sample_is_depended_on")
+            yield Bit(self, "pad[]")
+            yield Bit(self, "sample_has_redundancy")
+            yield NullBits(self, "pad[]", 3)
+            yield Bit(self, "sample_is_non_sync_sample")
+            yield UInt16(self, "sample_degradation_priority")
 
 
 class TrackFragmentDecodeTime(FieldSet):
