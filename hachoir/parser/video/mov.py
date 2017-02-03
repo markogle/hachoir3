@@ -632,6 +632,7 @@ class SampleCompositionTimeTable(FieldSet):
             else:
                 yield UInt32(self, "sample_offset[]", "Difference between decode time and composition time of this sample, in time-units")
 
+
 class ChunkOffsetTable(FieldSet):
 
     def createFields(self):
@@ -792,6 +793,35 @@ class SubSampleEntryV0(FieldSet):
             yield RawBytes(self, "codec_specific_parameters[]", 4)
 
 
+class TrackFragmentHeader(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flagspad[]", 6)
+        yield Bit(self, "default_base_is_moof")
+        yield Bit(self, "duration_is_empty")
+        yield NullBits(self, "flagspad[]", 10)
+        yield Bit(self, "default_sample_flags_present")
+        yield Bit(self, "default_sample_size_present")
+        yield Bit(self, "default_sample_duration_present")
+        yield NullBits(self, "flagspad[]", 1)
+        yield Bit(self, "sample_description_index_present")
+        yield Bit(self, "base_data_offset_present")
+
+        yield UInt32(self, "track_id")
+
+        if (self["base_data_offset_present"].value):
+            yield UInt64(self, "base_data_offset")
+        if (self["sample_description_index_present"].value):
+            yield UInt32(self, "sample_description_index")
+        if (self["default_sample_duration_present"].value):
+            yield UInt32(self, "default_sample_duration")
+        if (self["default_sample_size_present"].value):
+            yield UInt32(self, "default_sample_size")
+        if (self["default_sample_flags_present"].value):
+            yield UInt32(self, "default_sample_flags")
+
+
 class TrackFragmentDecodeTime(FieldSet):
 
     def createFields(self):
@@ -801,6 +831,7 @@ class TrackFragmentDecodeTime(FieldSet):
             yield UInt64(self, "base_media_decode_time")
         else:
             yield UInt32(self, "base_media_decode_time")
+
 
 class Atom(FieldSet):
     tag_info = {
@@ -861,6 +892,7 @@ class Atom(FieldSet):
             "mfhd": (MovieFragmentHeader, "mfhd", "movie fragment header"),
             "traf": (AtomList, "traf", "track fragment"),
                 # tfhd: track fragment header
+                "tfhd": (TrackFragmentHeader, "tfhd", "track fragment header"),
                 # trun: track fragment run
                 # sdtp: independent and disposable samples
                 # sbgp: sample-to-group
