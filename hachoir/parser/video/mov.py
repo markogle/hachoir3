@@ -749,7 +749,7 @@ class SampleToChunkTable(FieldSet):
     def createFields(self):
         yield UInt8(self, "version")
         yield NullBits(self, "flags", 24)
-        yield UInt32(self, "count", description="Number of samples")
+        yield UInt32(self, "count", description="Number of sample to chunk table entries")
         for i in range(self['count'].value):
             yield UInt32(self, "first_chunk[]")
             yield UInt32(self, "samples_per_chunk[]")
@@ -763,7 +763,7 @@ class SubSampleInformation(FieldSet):
         yield NullBits(self, "flags", 24)
         yield UInt32(self, "entry_count")
         for i in range(self["entry_count"].value):
-            if self["version"].value ==1: 
+            if self["version"].value == 1: 
                 yield SubSampleEntryV1(self, "SubSampleEntry[]")
             else:
                 yield SubSampleEntryV0(self, "SubSampleEntry[]")
@@ -879,6 +879,36 @@ class TrackFragmentRunSample(FieldSet):
                 yield Int32(self, "sample_composition_time_offset[]")
 
 
+class MovieExtendsHeader(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        if self["version"].value == 1:
+            yield UInt64(self, "fragment_duration")
+        else:
+            yield UInt32(self, "fragment_duration")
+
+
+class TrackExtends(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        yield UInt32(self, "track_id")
+        yield UInt32(self, "default_sample_description_index")
+        yield UInt32(self, "default_sample_duration")
+        yield UInt32(self, "default_sample_size")
+
+        yield Bits(self, "is_leading", 6)
+        yield Bits(self, "sample_depends_on", 2)
+        yield Bits(self, "sample_is_depended_on", 2)
+        yield Bits(self, "sample_has_redundancy", 2)
+        yield Bits(self, "sample_is_non_sync_sample", 4)
+        yield UInt16(self, "sample_degradation_priority")
+
+
+
 class SegmentIndex(FieldSet):
 
     def createFields(self):
@@ -961,6 +991,9 @@ class Atom(FieldSet):
             # mvex: movie extends
                 # mehd: movie extends header
                 # trex: track extends defaults
+            "mvex": (AtomList, "mvex", "movie extends box"),
+                "mehd": (MovieExtendsHeader, "mehd", "movie extends header"),
+                "trex": (TrackExtends, "trex", "track extends"),
             # ipmc: IPMP control
         "moof": (AtomList, "moof", "movie fragment"),
             "mfhd": (MovieFragmentHeader, "mfhd", "movie fragment header"),
