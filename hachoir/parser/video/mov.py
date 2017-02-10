@@ -763,7 +763,7 @@ class SubSampleInformation(FieldSet):
         yield NullBits(self, "flags", 24)
         yield UInt32(self, "entry_count")
         for i in range(self["entry_count"].value):
-            if self["version"].value == 1: 
+            if self["version"].value == 1:
                 yield SubSampleEntryV1(self, "SubSampleEntry[]")
             else:
                 yield SubSampleEntryV0(self, "SubSampleEntry[]")
