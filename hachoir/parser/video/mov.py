@@ -908,7 +908,6 @@ class TrackExtends(FieldSet):
         yield UInt16(self, "sample_degradation_priority")
 
 
-
 class SegmentIndex(FieldSet):
 
     def createFields(self):
