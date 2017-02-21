@@ -978,6 +978,22 @@ class ItemLocationItem(FieldSet):
             yield Bits(self, "extent_length", self.parent["length_size"].value * 8)
 
 
+class TrackFragmentExtendedHeader(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        if self["version"].value == 1:
+            yield UInt64(self, "absolute_time")
+            yield UInt64(self, "duration")
+        else:
+            yield UInt32(self, "absolute_time")
+            yield UInt32(self, "duration")
+        size = self['size'].value - self.current_size // 8
+        if size > 0:
+            yield RawBytes(self, "extra_data", size)
+
+
 class Atom(FieldSet):
     tag_info = {
         "ftyp": (FileType, "file_type", "File type and compatibility"),
@@ -1111,6 +1127,7 @@ class Atom(FieldSet):
         "tseg": (AtomList, "tseg", "tseg"),
         "chpl": (NeroChapters, "chpl", "Nero chapter data"),
         "sidx": (SegmentIndex, "sidx", "Segment Index"),
+        "6D1D9B05-42D5-44E6-80E2-141DAFF757B2": (TrackFragmentExtendedHeader, "tfxd", "track fragment extended header"),
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
     tag_desc = [item[1] for item in tag_info]
