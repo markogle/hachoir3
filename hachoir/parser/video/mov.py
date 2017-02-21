@@ -936,6 +936,48 @@ class SegmentIndex(FieldSet):
             yield Bits(self, "SAP_delta_time[]", 28)
 
 
+class ItemLocation(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+
+        yield Bits(self, "offset_size", 4)
+        yield Bits(self, "length_size", 4)
+        yield Bits(self, "base_offset_size", 4)
+
+        if self["version"].value == 1 or self["version"].value == 2:
+            yield Bits(self, "index_size", 4)
+        else:
+            yield Bits(self, "reserved", 4)
+        if self["version"].value < 2:
+            yield UInt16(self, "item_count")
+        elif self["version"].value == 2:
+            yield UInt32(self, "item_count")
+        for i in range(self["item_count"].value):
+            yield ItemLocationItem(self, "item_location_item[]")
+
+
+class ItemLocationItem(FieldSet):
+
+    def createFields(self):
+        if self.parent["version"].value < 2:
+            yield UInt16(self, "item_ID")
+        elif self.parent["version"].value == 2:
+            yield UInt32(self, "item_ID")
+        if self.parent["version"].value == 1 or self.parent["version"].value == 2:
+            yield Bits(self, "reserved", 12)
+            yield Bits(self, "construction_method", 4)
+        yield UInt16(self, "data_reference_index")
+        yield Bits(self, "base_offset", self.parent["base_offset_size"].value * 8)
+        yield UInt16(self, "extent_count")
+        for j in range(self["extent_count"].value):
+            if (self.parent["version"].value == 1 or self.parent["version"].value == 2) and self.parent["index_size"].value > 0:
+                yield Bits(self, "extend_index", self.parent["index_size"].value * 8)
+            yield Bits(self, "extent_offset", self.parent["offset_size"].value * 8)
+            yield Bits(self, "extent_length", self.parent["length_size"].value * 8)
+
+
 class Atom(FieldSet):
     tag_info = {
         "ftyp": (FileType, "file_type", "File type and compatibility"),
@@ -1019,6 +1061,7 @@ class Atom(FieldSet):
                 # dref: data reference, declares source(s) of metadata items
             # ipmc: IPMP control
             # iloc: item location
+            "iloc": (ItemLocation, "iloc", "item location"),
             # ipro: item protection
                 # sinf: protection scheme information
                     # frma: original format
