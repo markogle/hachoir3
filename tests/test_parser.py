@@ -232,6 +232,10 @@ class TestParsers(unittest.TestCase):
         parser = self.parse("pyc_example_2.5c1_pyc.bin")
         self.check_pyc(parser)
 
+    def check_pyc_37(self, parser):
+        parser = self.parse("python.cpython-37.pyc.bin")
+        self.checkValue(parser, "/content/consts/item[0]/name/text", "f")
+
     def test_java(self):
         parser = self.parse("ReferenceMap.class")
         self.checkValue(parser, "/minor_version", 3)
@@ -614,6 +618,17 @@ class TestParsers(unittest.TestCase):
             parser, "/packet[2]/adaptation_field/pcr_base", 44)
         self.checkValue(
             parser, "/packet[78]/payload_unit_start", True)
+
+    def test_m2ts(self):
+        parser = self.parse("Panasonic_AG_HMC_151.MTS")
+        self.checkValue(
+            parser, "/packet[0]/has_error", False)
+        self.checkValue(
+            parser, "/packet[0]/has_payload", True)
+        self.checkValue(
+            parser, "/packet[3]/has_adaptation", True)
+        self.checkValue(
+            parser, "/packet[3]/adaptation_field/pcr_base", 153)
 
     def test_macho_x86_ppc(self):
         parser = self.parse("macos_10.5.macho")
