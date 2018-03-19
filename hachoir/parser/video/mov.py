@@ -27,7 +27,7 @@ from hachoir.field import (ParserError, FieldSet, MissingField,
 from hachoir.field.timestamp import timestampFactory
 from hachoir.core.endian import BIG_ENDIAN
 from hachoir.core.text_handler import textHandler
-
+from hachoir.core.log import log as hachoir_log
 from hachoir.core.tools import MAC_TIMESTAMP_T0, timedelta
 
 
@@ -989,9 +989,29 @@ class TrackFragmentExtendedHeader(FieldSet):
         else:
             yield UInt32(self, "absolute_time")
             yield UInt32(self, "duration")
-        size = self['size'].value - self.current_size // 8
+
+        size = self.parent["size"] - self.current_size // 8
         if size > 0:
             yield RawBytes(self, "extra_data", size)
+
+
+class EventMessage(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+
+        yield CString(self, "scheme_id_uri")
+        yield CString(self, "value")
+
+        yield UInt32(self, "timescale")
+        yield UInt32(self, "presentation_time_delta")
+        yield UInt32(self, "event_duration")
+        yield UInt32(self, "id")
+
+        size = self.size // 8 - self.current_size // 8
+        if size > 0:
+            yield RawBytes(self, "message_data", size)
 
 
 class Atom(FieldSet):
@@ -1128,6 +1148,7 @@ class Atom(FieldSet):
         "chpl": (NeroChapters, "chpl", "Nero chapter data"),
         "sidx": (SegmentIndex, "sidx", "Segment Index"),
         "6D1D9B05-42D5-44E6-80E2-141DAFF757B2": (TrackFragmentExtendedHeader, "tfxd", "track fragment extended header"),
+        "emsg": (EventMessage, "emsg", "Event Message"),
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
     tag_desc = [item[1] for item in tag_info]
