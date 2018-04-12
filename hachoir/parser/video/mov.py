@@ -23,7 +23,7 @@ from hachoir.field import (ParserError, FieldSet, MissingField,
                            Enum,
                            Bit, NullBits, Bits, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64, TimestampMac32,
                            String, PascalString8, PascalString16, CString,
-                           RawBytes, NullBytes)
+                           RawBytes, NullBytes, PaddingBits)
 from hachoir.field.timestamp import timestampFactory
 from hachoir.core.endian import BIG_ENDIAN
 from hachoir.core.text_handler import textHandler
@@ -692,9 +692,76 @@ class SampleEntry(FieldSet):
             # Hint sample entry
             pass
 
+        while not self.eof:
+            yield Atom(self, "atom[]")
+
         size = self['size'].value - self.current_size // 8
         if size > 0:
             yield RawBytes(self, "extra_data", size)
+
+
+class VPCodecConfigurationBox(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        yield UInt8(self, "profile")
+        yield UInt8(self, "level")
+        yield Bits(self, "bit_depth", 4)
+        yield Bits(self, "chroma_subsampling", 3)
+        yield Bit(self, "video_full_range_flag")
+        yield UInt8(self, "colour_primaries")
+        yield UInt8(self, "transfer_characteristics")
+        yield UInt8(self, "matrix_coefficients")
+        yield UInt16(self, "codec_initialization_data_size")
+
+
+class HEVCCodecConfigurationBox(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "configurationVersion")
+        yield Bits(self, "profile_space", 2)
+        yield Bit(self, "tier_flag")
+        yield Bits(self, "profile_idc", 5)
+        yield UInt32(self, "profile_compatibility_indications")
+        yield Bits(self, "constraint_indicator_flags", 48)
+        yield UInt8(self, "level_idc")
+        yield PaddingBits(self, "res[]", 4, pattern=1)
+        yield Bits(self, "min_spatial_segmentation_idc", 12)
+        yield PaddingBits(self, "res[]", 6, pattern=1)
+        yield Bits(self, "parallelismType", 2)
+        yield PaddingBits(self, "res[]", 6, pattern=1)
+        yield Bits(self, "chroma_format_idc", 2)
+        yield PaddingBits(self, "res[]", 5, pattern=1)
+        yield Bits(self, "bit_depth_luma_minus_8", 3)
+        yield PaddingBits(self, "res[]", 5, pattern=1)
+        yield Bits(self, "bit_depth_chroma_minus_8", 3)
+        yield Bits(self, "avgFrameRate", 16)
+        yield Bits(self, "constantFrameRate", 2)
+        yield Bits(self, "numTemporalLayers", 3)
+        yield Bit(self, "temporalIDNested")
+        yield Bits(self, "lengthSizeMinusOne", 2)
+        yield UInt8(self, "numOfArrays")
+        for i in range(self["numOfArrays"].value):
+            yield HEVCNALArray(self, "NAL_arrays[]")
+
+
+class HEVCNALArray(FieldSet):
+
+    def createFields(self):
+        yield Bit(self, "array_completeness")
+        yield Bit(self, "reserved")
+        yield Bits(self, "NAL_unit_type", 6)
+        yield UInt16(self, "numNalus")
+        for i in range(self["numNalus"].value):
+            yield HEVCNalUnit(self, "NAL_units[]")
+
+
+class HEVCNalUnit(FieldSet):
+
+    def createFields(self):
+        yield UInt16(self, "nalUnitLength")
+        yield Bits(self, "nalUnit", self["nalUnitLength"].value)
 
 
 class SampleDescription(FieldSet):
@@ -1149,6 +1216,8 @@ class Atom(FieldSet):
         "sidx": (SegmentIndex, "sidx", "Segment Index"),
         "6D1D9B05-42D5-44E6-80E2-141DAFF757B2": (TrackFragmentExtendedHeader, "tfxd", "track fragment extended header"),
         "emsg": (EventMessage, "emsg", "Event Message"),
+        "vpcC": (VPCodecConfigurationBox, "vpcC", "VP codec configuration"),
+        "hvcC": (HEVCCodecConfigurationBox, "hvcC", "HEVC codec configuration"),
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
     tag_desc = [item[1] for item in tag_info]
