@@ -6,7 +6,7 @@ import os
 
 # UI: display options
 max_string_length = 40    # Max. length in characters of GenericString.display
-max_byte_length = 14      # Max. length in bytes of RawBytes.display
+max_byte_length = 256      # Max. length in bytes of RawBytes.display
 max_bit_length = 256      # Max. length in bits of RawBits.display
 
 # Global options
