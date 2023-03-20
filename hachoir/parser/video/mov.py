@@ -975,7 +975,7 @@ class TrackFragmentRunSample(FieldSet):
             yield UInt16(self, "sample_degradation_priority")
         if (self.parent["sample_composition_time_offsets_present"].value):
             if (self.parent["version"].value == 1):
-                yield UInt32(self, "sample_composition_time_offset[]")
+                yield Int32(self, "sample_composition_time_offset[]")
             else:
                 yield Int32(self, "sample_composition_time_offset[]")
 
@@ -1105,13 +1105,21 @@ class EventMessage(FieldSet):
         yield UInt8(self, "version")
         yield NullBits(self, "flags", 24)
 
-        yield CString(self, "scheme_id_uri")
-        yield CString(self, "value")
+        if self["version"].value == 0:
+            yield CString(self, "scheme_id_uri")
+            yield CString(self, "value")
 
-        yield UInt32(self, "timescale")
-        yield UInt32(self, "presentation_time_delta")
-        yield UInt32(self, "event_duration")
-        yield UInt32(self, "id")
+            yield UInt32(self, "timescale")
+            yield UInt32(self, "presentation_time_delta")
+            yield UInt32(self, "event_duration")
+            yield UInt32(self, "id")
+        elif self["version"].value == 1:
+            yield UInt32(self, "timescale")
+            yield UInt64(self, "presentation_time")
+            yield UInt32(self, "event_duration")
+            yield UInt32(self, "id")
+            yield CString(self, "scheme_id_uri")
+            yield CString(self, "value")
 
         size = self.size // 8 - self.current_size // 8
         if size > 0:
@@ -1251,6 +1259,19 @@ class TrackEncryptionBox(FieldSet):
         if self["default_isProtected"].value == 1 and self["default_Per_sample_IV_Size"].value == 0:
             yield UInt8(self, "default_constant_IV_size")
             yield RawBytes(self, "default_constant_IV", self["default_constant_IV_size"].value)
+
+
+class ProducerReferenceTimeBox(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+        yield UInt32(self, "reference_track_id")
+        yield UInt64(self, "ntp_timestamp")
+        if self["version"].value == 1:
+            yield UInt64(self, "media_time")
+        else:
+            yield UInt32(self, "media_time")
 
 
 class Atom(FieldSet):
@@ -1398,6 +1419,7 @@ class Atom(FieldSet):
         "schm": (SchemeTypeBox, "schm", "scheme type"),
         "schi": (SchemeInformationBox, "schi", "scheme information"),
         "tenc": (TrackEncryptionBox, "tenc", "track encryption"),
+        "prft": (ProducerReferenceTimeBox, "prft", "producer reference time")
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
     tag_desc = [item[1] for item in tag_info]
