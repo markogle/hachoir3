@@ -1126,6 +1126,24 @@ class EventMessage(FieldSet):
             yield RawBytes(self, "message_data", size)
 
 
+class EventMessageInstance(FieldSet):
+
+    def createFields(self):
+        yield UInt8(self, "version")
+        yield NullBits(self, "flags", 24)
+
+        yield UInt32(self, "reserverd")
+        yield Int64(self, "presentation_time_delta")
+        yield UInt32(self, "event_duration")
+        yield UInt32(self, "id")
+        yield CString(self, "scheme_id_uri")
+        yield CString(self, "value")
+
+        size = self.size // 8 - self.current_size // 8
+        if size > 0:
+            yield RawBytes(self, "message_data", size)
+
+
 class ProtectionSystemSpecificHeaderBox(FieldSet):
     def createFields(self):
         yield UInt8(self, "version")
@@ -1411,6 +1429,7 @@ class Atom(FieldSet):
         "sidx": (SegmentIndex, "sidx", "Segment Index"),
         "6D1D9B05-42D5-44E6-80E2-141DAFF757B2": (TrackFragmentExtendedHeader, "tfxd", "track fragment extended header"),
         "emsg": (EventMessage, "emsg", "Event Message"),
+        "emib": (EventMessageInstance, "emib", "Event Message Instance"),
         "vpcC": (VPCodecConfigurationBox, "vpcC", "VP codec configuration"),
         "hvcC": (HEVCCodecConfigurationBox, "hvcC", "HEVC codec configuration"),
         "avcC": (AVCCodecConfigurationBox, "avcC", "AVC codec configuration"),
