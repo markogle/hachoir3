@@ -143,15 +143,15 @@ class hex_view_t(wx.ScrolledWindow):
             hl_start = max(start, rowstart)
             hl_end = min(end, rowend)
 
-            hy = ch * row - offset
-            hx = self.layout.textstart('hex') + (hl_start - rowstart) * 3 * cw
-            hw = ((hl_end - hl_start) * 3 - 1) * cw
-            hh = ch
+            hy = int(ch * row - offset)
+            hx = int(self.layout.textstart('hex') + (hl_start - rowstart) * 3 * cw)
+            hw = int(((hl_end - hl_start) * 3 - 1) * cw)
+            hh = int(ch)
 
             dc.DrawRectangle(hx, hy, hw, hh)
 
-            hx = self.layout.textstart('text') + (hl_start - rowstart) * cw
-            hw = (hl_end - hl_start) * cw
+            hx = int(self.layout.textstart('text') + (hl_start - rowstart) * cw)
+            hw = int((hl_end - hl_start) * cw)
             dc.DrawRectangle(hx, hy, hw, hh)
 
     def OnPaint(self, event):
@@ -168,7 +168,7 @@ class hex_view_t(wx.ScrolledWindow):
 
         # Draw "textbox" rects under the hex and text views
         dc.SetPen(wx.NullPen)
-        dc.SetBrush(wx.WHITE_BRUSH)
+        dc.SetBrush(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)))
         dc.DrawRectangle(lo.boxstart('hex'), 0, lo.boxwidth('hex'), h)
         dc.DrawRectangle(lo.boxstart('text'), 0, lo.boxwidth('text'), h)
 
@@ -177,7 +177,7 @@ class hex_view_t(wx.ScrolledWindow):
 
         # Draw highlights under the selected field
         if self.field_span is not None:
-            dc.SetBrush(wx.LIGHT_GREY_BRUSH)
+            dc.SetBrush(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_HOTLIGHT)))
             self.highlight_region(dc, *self.field_span)
 
         # Draw the actual text

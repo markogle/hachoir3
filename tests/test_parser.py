@@ -178,7 +178,7 @@ class TestParsers(unittest.TestCase):
         self.checkValue(parser, "file[0]/crc32", 0x4C6D13ED)
         self.checkValue(parser, "new_sub_block[1]/crc32", 0x34528E23)
         self.checkValue(parser, "file[1]/filename",
-                        ".svn\prop-base\README.svn-base")
+                        r".svn\prop-base\README.svn-base")
         self.checkValue(parser, "new_sub_block[1]/filename", 'ACL')
         # archive_end bad candidate for checking
         self.checkValue(parser, "new_sub_block[362]/crc32", 0x6C84C95E)
@@ -187,7 +187,7 @@ class TestParsers(unittest.TestCase):
         parser = self.parse("hachoir-core.ace")
         self.checkValue(parser, "header/crc16", 0xA9BE)
         self.checkValue(parser, "file[0]/reserved", 0x4554)
-        self.checkValue(parser, "file[1]/filename", "hachoir_core\.svn")
+        self.checkValue(parser, "file[1]/filename", r"hachoir_core\.svn")
         self.checkValue(parser, "file[2]/parameters", 0x000A)
         # End of archive, lots of work...
         # self.checkValue(parser, "new_recovery[0]/signature", "**ACE**")
@@ -235,6 +235,12 @@ class TestParsers(unittest.TestCase):
     def check_pyc_37(self, parser):
         parser = self.parse("python.cpython-37.pyc.bin")
         self.checkValue(parser, "/content/consts/item[0]/name/text", "f")
+
+    def check_pyc_312(self, parser):
+        parser = self.parse("python.cpython-312.pyc.bin")
+        self.checkValue(parser, "/content/consts/item[0]/value", 1)
+        self.checkValue(parser, "/content/names/item[0]/text", "x")
+        self.checkValue(parser, "/content/name/text", "<module>")
 
     def test_java(self):
         parser = self.parse("ReferenceMap.class")
@@ -336,6 +342,21 @@ class TestParsers(unittest.TestCase):
         self.checkValue(parser, "/superblock/default_mount_opts/acl", True)
         self.checkValue(parser, "/superblock/default_mount_opts/uid16", False)
         self.checkDisplay(parser, "/superblock/default_mount_opts/jmode", "none")
+
+    def test_ext2_variety_inode_types(self):
+        parser = self.parse("types.ext2")
+        self.checkDesc(parser, "/group[0]/inode_table/inode[12]",
+                       "Inode 13: Symbolic link (-> XYZ), size=3 bytes, mode=lrwxrwxrwx")
+
+    def test_ext2_various_inode_sizes(self):
+        for bsize, isize in [(1024, 1024), (2048, 512), (4096, 128)]:
+            fname = "bsize-%d-isize-%d.ext2" % (bsize, isize)
+            parser = self.parse(fname)
+            self.checkValue(parser, "/superblock/inode_size", isize)
+            self.checkValue(parser, "/group[0]/inode_table/inode[11]/size", 6)
+            self.checkDesc(parser, "/group[0]/inode_table/inode[12]",
+                           "Inode 13: Symbolic link (-> source), size=6 bytes, mode=lrwxrwxrwx")
+            self.checkValue(parser, "/group[0]/inode[11]block[0]", b"hello\n" + b'\0' * (bsize - 6))
 
     def test_bmp2(self):
         parser = self.parse("article01.bmp")
@@ -444,14 +465,170 @@ class TestParsers(unittest.TestCase):
         self.checkDisplay(parser, "/blocksize", "'9'")
         self.checkDisplay(parser, "/file/crc32", "0x8c3c1b7b")
 
-    def test_elf_program(self):
+    def test_elf_program_32lsb(self):
         parser = self.parse("ping_20020927-3ubuntu2")
         self.checkDisplay(parser, "/header/class", "32 bits")
         self.checkDisplay(parser, "/header/endian", "Little endian")
         self.checkDisplay(parser, "/header/type", "Executable file")
-        self.checkDisplay(parser, "/header/machine", "Intel 80386"),
+        self.checkDisplay(parser, "/header/machine", "Intel 80386")
         self.checkValue(parser, "/header/phentsize", 32)
         self.checkDisplay(parser, "/prg_header[1]/type", "Program interpreter")
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_alloc", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_exec", True)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[17]/flags/is_writable", True)
+        self.checkValue(
+            parser, "/section_header[17]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[17]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[17]/flags/is_tls", False)
+
+    def test_elf_program_64lsb(self):
+        parser = self.parse("get-versions.64bit.little.elf")
+        self.checkDisplay(parser, "/header/endian", "Little endian")
+        self.checkDisplay(parser, "/header/type", "Executable file")
+        self.checkDisplay(parser, "/header/machine", "Advanced Micro Devices x86-64")
+        self.checkValue(parser, "/header/phentsize", 56)
+        self.checkDisplay(parser, "/prg_header[1]/type", "Program interpreter")
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_alloc", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_exec", True)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[18]/flags/is_writable", True)
+        self.checkValue(
+            parser, "/section_header[18]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[18]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[18]/flags/is_tls", False)
+
+    def test_elf_program_32msb(self):
+        parser = self.parse("mev.32bit.big.elf")
+        self.checkDisplay(parser, "/header/class", "32 bits")
+        self.checkDisplay(parser, "/header/endian", "Big endian")
+        self.checkDisplay(parser, "/header/type", "Shared object file")
+        self.checkDisplay(parser, "/header/machine", "MIPS I Architecture")
+        self.checkValue(parser, "/header/phentsize", 32)
+        self.checkDisplay(parser, "/prg_header[1]/type", "Program interpreter")
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_alloc", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_exec", True)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_writable", True)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_tls", False)
+
+    def test_elf_program_64msb(self):
+        parser = self.parse("mev.64bit.big.elf")
+        self.checkDisplay(parser, "/header/class", "64 bits")
+        self.checkDisplay(parser, "/header/endian", "Big endian")
+        self.checkDisplay(parser, "/header/type", "Shared object file")
+        self.checkDisplay(parser, "/header/machine", "IBM S390")
+        self.checkValue(parser, "/header/phentsize", 56)
+        self.checkDisplay(parser, "/prg_header[1]/type", "Program interpreter")
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_alloc", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[0]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[1]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_writable", False)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_exec", True)
+        self.checkValue(
+            parser, "/section_header[13]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_writable", True)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_alloc", True)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_exec", False)
+        self.checkValue(
+            parser, "/section_header[19]/flags/is_tls", False)
+        self.checkValue(
+            parser, "/section_header[10]/flags/is_info_link", True)
 
     def test_cab(self):
         parser = self.parse("georgia.cab")
@@ -659,6 +836,130 @@ class TestParsers(unittest.TestCase):
             parser, "/file[1]/load_command[1]/data/segname", "__TEXT")
         self.checkValue(
             parser, "/file[1]/load_command[1]/data/section[1]/sectname", "__stubs")
+
+    def test_cr2(self):
+        parser = self.parse("canon.raw.cr2")
+        self.checkValue(parser, "version", 42)
+        self.checkValue(parser, "cr_identifier", "CR")
+        self.checkValue(parser, "ifd[0]/entry[0]/tag", 0x0100)
+        self.checkValue(parser, "ifd[0]/value[4]", 'Canon')
+        self.checkValue(parser, "ifd[0]/value[5]", 'Canon EOS REBEL T5i')
+
+    def test_tga(self):
+        parser = self.parse("32bpp.tga")
+        self.checkValue(parser, "/width", 800)
+        self.checkValue(parser, "/height", 600)
+        self.checkValue(parser, "/bpp", 32)
+        self.checkDisplay(parser, "/codec", "True-color RLE")
+
+    def test_ttf(self):
+        parser = self.parse("deja_vu_serif-2.7.ttf")
+        self.checkValue(parser, "/hhea/ascender", 1901)
+        self.checkValue(parser, "/maxp/maxCompositePoints", 101)
+        self.checkValue(parser, "/cmap/encodingRecords[1]/platformID", 1)
+        self.checkValue(parser, "/OS_2/achVendID", "Deja")
+
+    def test_fit(self):
+        parser = self.parse("test_file.fit")
+        self.checkValue(parser, "/header/datasize", 8148)
+        self.checkValue(parser, "/definition[18]/msgNumber", 325)
+        self.checkValue(parser, "/definition[18]/fieldDefinition[6]/number", 5)
+        self.checkValue(parser, "/definition[18]/RecordHeader/msgType", 2)
+        self.checkValue(parser, "/data[50]/field0", 1000231166)
+        self.checkValue(parser, "/data[50]/field1", 111)
+        self.checkValue(parser, "/data[50]/field2", 96)
+
+    def test_arj(self):
+        parser = self.parse("example2.arj")
+        self.checkValue(parser, "/header/crc", 0xd2fe10aa)
+        self.checkValue(parser, "/header/filename", "example2.arj")
+        self.checkValue(parser, "/file_header[1]/filename", "usr/bin/awk")
+        self.checkValue(parser, "/file_header[1]/original_size", 125416)
+
+    def test_arj2(self):
+        parser = self.parse("example4_chapters.arj")
+        self.checkValue(parser, "/header/crc", 0x967cc3b)
+        self.checkValue(parser, "/header/filename", "example4.arj")
+        self.checkValue(parser, "/file_header[15]/filename", "usr/bin/groups")
+        self.checkValue(parser, "/file_header[15]/original_size", 35000)
+
+    def test_xcf1(self):
+        parser = self.parse("minimal_xcf1.xcf")
+        self.checkValue(parser, "/signature", "gimp xcf file\0")
+        self.checkValue(parser, "/layer[0]/width", 1)
+        self.checkValue(parser, "/layer[0]/height", 1)
+        self.checkValue(parser, "/layer[0]/name", "Background")
+        self.checkValue(parser, "/layer[0]/hierarchy/bpp", 3)
+        self.checkValue(parser, "/layer[0]/hierarchy/level[0]/offset", 196)
+
+    def test_xcf3(self):
+        parser = self.parse("minimal_xcf3.xcf")
+        self.checkValue(parser, "/signature", "gimp xcf v003\0")
+        self.checkValue(parser, "/layer[0]/width", 1)
+        self.checkValue(parser, "/layer[0]/height", 1)
+        self.checkValue(parser, "/layer[0]/name", "Background")
+        self.checkValue(parser, "/layer[0]/hierarchy/bpp", 3)
+        self.checkValue(parser, "/layer[0]/hierarchy/level[0]/offset", 196)
+
+    def test_xcf10(self):
+        parser = self.parse("minimal_xcf10.xcf")
+        self.checkValue(parser, "/signature", "gimp xcf v010\0")
+        self.checkValue(parser, "/layer[0]/width", 1)
+        self.checkValue(parser, "/layer[0]/height", 1)
+        self.checkValue(parser, "/layer[0]/name", "Background")
+        self.checkValue(parser, "/layer[0]/hierarchy/bpp", 3)
+        self.checkValue(parser, "/layer[0]/hierarchy/level[0]/offset", 200)
+
+    def test_xcf11(self):
+        parser = self.parse("1024x1024-better-compression.xcf")
+        self.checkValue(parser, "/signature", "gimp xcf v011\0")
+        self.checkValue(parser, "/layer[0]/width", 512)
+        self.checkValue(parser, "/layer[0]/height", 512)
+        self.checkValue(parser, "/layer[0]/name", "Layer 2")
+        self.checkValue(parser, "/layer[0]/hierarchy/level[2]/width", 128)
+        self.checkValue(parser, "/layer[1]/name", "Layer 1")
+        self.checkValue(parser, "/layer[1]/hierarchy/level[2]/width", 128)
+        self.checkValue(parser, "/layer[2]/name", "Background")
+        self.checkValue(parser, "/layer[2]/hierarchy/level[1]/width", 256)
+
+    def test_zlib(self):
+        parser = self.parse("usa_railroad.jpg.6.zlib")
+        self.checkValue(parser, "/compression_method", 8)
+        self.checkValue(parser, "/compression_info", 7)
+        self.checkValue(parser, "/flag_check_bits", 30)
+        self.checkValue(parser, "/flag_dictionary_present", False)
+        self.checkValue(parser, "/flag_compression_level", 1)
+        self.checkValue(parser, "/data/compressed_block[0]/final", False)
+        self.checkValue(parser, "/data/compressed_block[0]/compression_type", 2)
+        self.checkValue(parser, "/data/compressed_block[0]/huff_num_length_codes", 29)
+        self.checkValue(parser, "/data/compressed_block[0]/length_code[16383]", 16380)
+        self.checkValue(parser, "/data/compressed_block[5]/final", True)
+        self.checkValue(parser, "/data/compressed_block[5]/compression_type", 0)
+        self.checkValue(parser, "/data/compressed_block[5]/len", 8844)
+        self.checkValue(parser, "/data/compressed_block[5]/nlen", 56691)
+        self.checkValue(parser, "/data_checksum", 0xe85c1f89)
+
+    def test_zlib_large_uncompressed_block(self):
+        parser = self.parse("usa_railroad.jpg.0.zlib")
+        self.checkValue(parser, "/data/compressed_block[0]/final", False)
+        self.checkValue(parser, "/data/compressed_block[0]/compression_type", 0)
+        self.checkValue(parser, "/data/compressed_block[0]/padding[0]", 0)
+        self.checkValue(parser, "/data/compressed_block[0]/len", 65535)
+        self.checkValue(parser, "/data/compressed_block[0]/nlen", 0)
+        self.checkValue(parser, "/data/compressed_block[1]/final", True)
+        self.checkValue(parser, "/data/compressed_block[1]/compression_type", 0)
+        self.checkValue(parser, "/data/compressed_block[1]/padding[0]", 0)
+        self.checkValue(parser, "/data/compressed_block[1]/len", 38213)
+        self.checkValue(parser, "/data/compressed_block[1]/nlen", 27322)
+        self.checkValue(parser, "/data_checksum", 0xe85c1f89)
+
+    def test_git_pack(self):
+        parser = self.parse("pack-31c691f659cbc7841ca55a26a342fdaf0b89c533.pack")
+        self.checkValue(parser, "/version", 2)
+        self.checkValue(parser, "/num_objects", 7)
+        self.checkDesc(parser, "/object[0]", "type=OBJ_COMMIT, decompressed size=244")
+        # FIXME: also check parsing of objects (with sub-parsers)
+        self.checkValue(parser, "/checksum", 0x31c691f659cbc7841ca55a26a342fdaf0b89c533)
 
 
 class TestParserRandomStream(unittest.TestCase):

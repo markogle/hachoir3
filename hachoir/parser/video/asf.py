@@ -14,6 +14,7 @@ from hachoir.parser import Parser
 from hachoir.field import (FieldSet, ParserError,
                            UInt16, UInt32, UInt64,
                            TimestampWin64, TimedeltaWin64,
+                           TimedeltaMillisWin64,
                            String, PascalString16, Enum,
                            Bit, Bits, PaddingBits,
                            PaddingBytes, NullBytes, RawBytes)
@@ -93,7 +94,7 @@ class FileProperty(FieldSet):
         yield UInt64(self, "pckt_count")
         yield TimedeltaWin64(self, "play_duration")
         yield TimedeltaWin64(self, "send_duration")
-        yield UInt64(self, "preroll")
+        yield TimedeltaMillisWin64(self, "preroll")
         yield Bit(self, "broadcast", "Is broadcast?")
         yield Bit(self, "seekable", "Seekable stream?")
         yield PaddingBits(self, "reserved[]", 30)
@@ -354,7 +355,7 @@ class AsfFile(Parser):
         if self.stream.readBytes(0, len(magic)) != magic:
             return "Invalid magic"
         header = self[0]
-        if not(30 <= header["size"].value <= MAX_HEADER_SIZE):
+        if not (30 <= header["size"].value <= MAX_HEADER_SIZE):
             return "Invalid header size (%u)" % header["size"].value
         return True
 

@@ -128,7 +128,7 @@ class DataObject(FieldSet):
                 yield padding
             for i in range(self["entry_count"].value):
                 yield UInt32(self, "index[" + str(i) + "]", "Index of the " + str(i) + "nth mhit")
-        elif(self["type"].value < 15) or (self["type"].value > 17) or (self["type"].value >= 200):
+        elif (self["type"].value < 15) or (self["type"].value > 17) or (self["type"].value >= 200):
             yield UInt32(self, "unknown[]")
             yield UInt32(self, "unknown[]")
             yield UInt32(self, "position", "Position")
@@ -488,7 +488,7 @@ class ITunesDBFile(Parser):
         "id": "itunesdb",
         "category": "audio",
         "min_size": 44 * 8,
-        "magic": (('mhbd', 0),),
+        "magic": ((b'mhbd', 0),),
         "description": "iPod iTunesDB file"
     }
 

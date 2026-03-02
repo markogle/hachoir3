@@ -23,8 +23,7 @@ Introduction:
       "__str__()" method, which returns a syntetic view of this contents.
     - CPIndex are constant pool indexes (UInt16).  It is possible to specify
       what type of CPInfo they are allowed to points to.  They also have a
-      custom display method, usually printing something like "->  foo", where
-      foo is the str() of their target CPInfo.
+      custom display method, usually printing the str() of their target CPInfo.
 
 References:
  * The Java Virtual Machine Specification, 2nd edition, chapter 4, in HTML:
@@ -114,7 +113,7 @@ def eat_descriptor(descr):
     if (descr[0] == 'L'):
         try:
             end = descr.find(';')
-        except:
+        except Exception:
             raise ParserError("Not a valid descriptor string: " + descr)
         type = descr[1:end]
         descr = descr[end:]
@@ -219,13 +218,13 @@ class ConstantPool(FieldSet):
 
 
 ###############################################################################
-class CPIndex(UInt16):
+class CPIndexBase(object):
     """
     Holds index of a constant pool entry.
     """
 
     def __init__(self, parent, name, description=None, target_types=None,
-                 target_text_handler=(lambda x: x), allow_zero=False):
+                 target_text_handler=None, allow_zero=False):
         """
         Initialize a CPIndex.
         - target_type is the tuple of expected type for the target CPInfo
@@ -235,7 +234,7 @@ class CPIndex(UInt16):
         - allow_zero states whether null index is allowed (sometimes, constant
           pool index is optionnal)
         """
-        UInt16.__init__(self, parent, name, description)
+        super().__init__(parent, name, description)
         if isinstance(target_types, str):
             self.target_types = (target_types,)
         else:
@@ -245,13 +244,16 @@ class CPIndex(UInt16):
         self.getOriginalDisplay = lambda: self.value
 
     def createDisplay(self):
-        cp_entry = self.get_cp_entry()
+        cp_entry = self._get_cp_entry()
         if self.allow_zero and not cp_entry:
             return "ZERO"
         assert cp_entry
-        return "-> " + self.target_text_handler(str(cp_entry))
+        if self.target_text_handler is None:
+            return str(cp_entry)
+        else:
+            return self.target_text_handler(cp_entry.rawvalue())
 
-    def get_cp_entry(self):
+    def _get_cp_entry(self):
         """
         Returns the target CPInfo field.
         """
@@ -263,6 +265,20 @@ class CPIndex(UInt16):
         if self.target_types:
             assert cp_entry.constant_type in self.target_types
         return cp_entry
+
+    def str(self):
+        return str(self._get_cp_entry())
+
+    def rawvalue(self):
+        return self._get_cp_entry().rawvalue()
+
+
+class CPIndex(CPIndexBase, UInt16):
+    pass
+
+
+class CPIndexShort(CPIndexBase, UInt8):
+    pass
 
 
 ###############################################################################
@@ -301,6 +317,9 @@ class OpcodeCPIndex(JavaOpcode):
         yield CPIndex(self, "index")
 
     def createDisplay(self):
+        return "%s(%s)" % (self.op, self["index"].display)
+
+    def createValue(self):
         return "%s(%i)" % (self.op, self["index"].value)
 
 
@@ -309,9 +328,12 @@ class OpcodeCPIndexShort(JavaOpcode):
 
     def createFields(self):
         yield UInt8(self, "opcode")
-        yield UInt8(self, "index")
+        yield CPIndexShort(self, "index")
 
     def createDisplay(self):
+        return "%s(%s)" % (self.op, self["index"].display)
+
+    def createValue(self):
         return "%s(%i)" % (self.op, self["index"].value)
 
 
@@ -411,6 +433,19 @@ class OpcodeSpecial_invokeinterface(JavaOpcode):
 
     def createDisplay(self):
         return "%s(%i,%i,%i)" % (self.op, self["index"].value, self["count"].value, self["zero"].value)
+
+
+class OpcodeSpecial_invokedynamic(JavaOpcode):
+    OPSIZE = 5
+
+    def createFields(self):
+        yield UInt8(self, "opcode")
+        yield CPIndex(self, "index")
+        yield UInt8(self, "zero1", "Must be zero.")
+        yield UInt8(self, "zero2", "Must be zero.")
+
+    def createDisplay(self):
+        return "%s(%i,%i,%i)" % (self.op, self["index"].value, self["zero1"].value, self["zero2"].value)
 
 
 class OpcodeSpecial_newarray(JavaOpcode):
@@ -637,6 +672,7 @@ class JavaBytecode(FieldSet):
         0x98: ("dcmpg", OpcodeNoArgs, "compares two doubles. Stack: value1, value2 -> result"),
         0x99: ("ifeq", OpcodeShortJump, "if 'value' is 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
         0x9a: ("ifne", OpcodeShortJump, "if 'value' is not 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
+        0x9b: ("iflt", OpcodeShortJump, "if 'value' is less than 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
         0x9c: ("ifge", OpcodeShortJump, "if 'value' is greater than or equal to 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
         0x9d: ("ifgt", OpcodeShortJump, "if 'value' is greater than 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
         0x9e: ("ifle", OpcodeShortJump, "if 'value' is less than or equal to 0, branch to the 16-bit instruction offset argument. Stack: value ->"),
@@ -667,7 +703,7 @@ class JavaBytecode(FieldSet):
         0xb7: ("invokespecial", OpcodeCPIndex, "invoke instance method on object 'objectref', where the method is identified by method reference <argument> in constant pool. Stack: objectref, [arg1, arg2, ...] ->"),
         0xb8: ("invokestatic", OpcodeCPIndex, "invoke a static method, where the method is identified by method reference <argument> in the constant pool. Stack: [arg1, arg2, ...] ->"),
         0xb9: ("invokeinterface", OpcodeSpecial_invokeinterface, "invokes an interface method on object 'objectref', where the interface method is identified by method reference <argument> in constant pool. Stack: objectref, [arg1, arg2, ...] ->"),
-        0xba: ("xxxunusedxxx", OpcodeNoArgs, "this opcode is reserved for historical reasons. Stack: "),
+        0xba: ("invokedynamic", OpcodeSpecial_invokedynamic, "invokes a dynamically-computed call site, where the bootstrap method is identified by <argument> in constant pool. Stack: [arg1, arg2, ...] -> "),
         0xbb: ("new", OpcodeCPIndex, "creates new object of type identified by class reference <argument> in constant pool. Stack: -> objectref"),
         0xbc: ("newarray", OpcodeSpecial_newarray, "creates new array with 'count' elements of primitive type given in the argument. Stack: count -> arrayref"),
         0xbd: ("anewarray", OpcodeCPIndex, "creates a new array of references of length 'count' and component type identified by the class reference <argument> in the constant pool. Stack: count -> arrayref"),
@@ -740,7 +776,73 @@ class CPInfo(FieldSet):
         elif self.constant_type == "NameAndType":
             yield CPIndex(self, "name_index", target_types="Utf8")
             yield CPIndex(self, "descriptor_index", target_types="Utf8")
+        elif self.constant_type == "MethodHandle":
+            refkind_map = {
+                1: ("getField", "Fieldref"),
+                2: ("getStatic", "Fieldref"),
+                3: ("putField", "Fieldref"),
+                4: ("putStatic", "Fieldref"),
+                5: ("invokeVirtual", "Methodref"),
+                6: ("invokeStatic", ("Methodref", "InterfaceMethodref")),
+                7: ("invokeSpecial", ("Methodref", "InterfaceMethodref")),
+                8: ("newInvokeSpecial", "Methodref"),
+                9: ("invokeInterface", "InterfaceMethodref"),
+            }
+            yield Enum(UInt8(self, "reference_kind"), {k: v[0] for k, v in refkind_map.items()})
+            target_types = refkind_map[self["reference_kind"].value][1]
+            yield CPIndex(self, "reference_index", target_types=target_types)
+        elif self.constant_type == "MethodType":
+            yield CPIndex(self, "descriptor_index", target_types="Utf8")
+        elif self.constant_type == "Dynamic":
+            yield UInt16(self, "bootstrap_method_attr_index")
+            yield CPIndex(self, "name_and_type_index", target_types="NameAndType")
+        elif self.constant_type == "InvokeDynamic":
+            yield UInt16(self, "bootstrap_method_attr_index")
+            yield CPIndex(self, "name_and_type_index", target_types="NameAndType")
+        elif self.constant_type == "Module":
+            yield CPIndex(self, "name_index", target_types="Utf8")
+        elif self.constant_type == "Package":
+            yield CPIndex(self, "name_index", target_types="Utf8")
         else:
+            raise ParserError("Not a valid constant pool element type: "
+                              + self["tag"].value)
+
+    def rawvalue(self):
+        """
+        Returns a string as close to the "raw" Constant pool value as possible.
+        """
+
+        if self.constant_type == "Utf8":
+            return self["bytes"].value
+        elif self.constant_type in ("Integer", "Float", "Long", "Double"):
+            return self["bytes"].value
+        elif self.constant_type == "Class":
+            return self["name_index"].rawvalue()
+        elif self.constant_type == "String":
+            return self["string_index"].rawvalue()
+        elif self.constant_type in ("Fieldref", "Methodref", "InterfaceMethodref"):
+            descriptor, name = self["name_and_type_index"].rawvalue()
+            return (self["class_index"].rawvalue(), descriptor, name)
+        elif self.constant_type == "NameAndType":
+            return (self["descriptor_index"].rawvalue(),
+                    self["name_index"].rawvalue())
+        elif self.constant_type == "MethodHandle":
+            return (self["reference_kind"].display,
+                    self["reference_index"].rawvalue())
+        elif self.constant_type == "MethodType":
+            return self["descriptor_index"].rawvalue()
+        elif self.constant_type == "Dynamic":
+            return (self["bootstrap_method_attr_index"].value,
+                    self["name_and_type_index"].rawvalue())
+        elif self.constant_type == "InvokeDynamic":
+            return (self["bootstrap_method_attr_index"].value,
+                    self["name_and_type_index"].rawvalue())
+        elif self.constant_type == "Module":
+            return self["name_index"].rawvalue()
+        elif self.constant_type == "Package":
+            return self["name_index"].rawvalue()
+        else:
+            # FIXME: Return "<error>" instead of raising an exception?
             raise ParserError("Not a valid constant pool element type: "
                               + self["tag"].value)
 
@@ -751,24 +853,38 @@ class CPInfo(FieldSet):
         to it.
         """
         if self.constant_type == "Utf8":
-            return self["bytes"].value
+            return '"' + self.rawvalue().replace('\\', '\\\\').replace('"', '\\"') + '"'
         elif self.constant_type in ("Integer", "Float", "Long", "Double"):
             return self["bytes"].display
         elif self.constant_type == "Class":
-            class_name = str(self["name_index"].get_cp_entry())
-            return class_name.replace("/", ".")
+            return self["name_index"].rawvalue().replace("/", ".")
         elif self.constant_type == "String":
-            return str(self["string_index"].get_cp_entry())
-        elif self.constant_type == "Fieldref":
-            return "%s (from %s)" % (self["name_and_type_index"], self["class_index"])
-        elif self.constant_type == "Methodref":
-            return "%s (from %s)" % (self["name_and_type_index"], self["class_index"])
-        elif self.constant_type == "InterfaceMethodref":
-            return "%s (from %s)" % (self["name_and_type_index"], self["class_index"])
+            return self["string_index"].str()
+        elif self.constant_type in ("Fieldref", "Methodref", "InterfaceMethodref"):
+            classname, descriptor, name = self.rawvalue()
+            fullname = classname.replace('/', '.') + '.' + name
+            return parse_any_descriptor(descriptor, name=fullname)
         elif self.constant_type == "NameAndType":
-            return parse_any_descriptor(
-                str(self["descriptor_index"].get_cp_entry()),
-                name=str(self["name_index"].get_cp_entry()))
+            descriptor, name = self.rawvalue()
+            return parse_any_descriptor(descriptor, name=name)
+        elif self.constant_type == "MethodHandle":
+            return "%s(%s)" % (self["reference_kind"].display, self["reference_index"].str())
+        elif self.constant_type == "MethodType":
+            return self["descriptor_index"].str()
+        elif self.constant_type == "Dynamic":
+            return "%d, %s" % (
+                self["bootstrap_method_attr_index"].value,
+                self["name_and_type_index"].str()
+            )
+        elif self.constant_type == "InvokeDynamic":
+            return "%d, %s" % (
+                self["bootstrap_method_attr_index"].value,
+                self["name_and_type_index"].str()
+            )
+        elif self.constant_type == "Module":
+            return self["name_index"].str()
+        elif self.constant_type == "Package":
+            return self["name_index"].str()
         else:
             # FIXME: Return "<error>" instead of raising an exception?
             raise ParserError("Not a valid constant pool element type: "
@@ -819,8 +935,8 @@ class FieldInfo(FieldSet):
             if self[mod].value:
                 bits.append(mod)
         bits.append(parse_field_descriptor(
-            str(self['descriptor_index'].get_cp_entry()),
-            name=str(self['name_index'].get_cp_entry())))
+            self['descriptor_index'].rawvalue()),
+            name=self['name_index'].rawvalue())
         return ' '.join(bits)
 
 
@@ -867,8 +983,8 @@ class MethodInfo(FieldSet):
                     'abstract', 'strict', 'synthetic']:
             if self[mod].value:
                 bits.append(mod)
-        name = str(self['name_index'].get_cp_entry())
-        meth = str(self['descriptor_index'].get_cp_entry())
+        name = self['name_index'].rawvalue()
+        meth = self['descriptor_index'].rawvalue()
         bits.append(parse_method_descriptor(meth, name))
         return ' '.join(bits)
 
@@ -889,7 +1005,7 @@ class AttributeInfo(FieldSet):
     def createFields(self):
         yield CPIndex(self, "attribute_name_index", "Attribute name", target_types="Utf8")
         yield UInt32(self, "attribute_length", "Length of the attribute")
-        attr_name = str(self["attribute_name_index"].get_cp_entry())
+        attr_name = self["attribute_name_index"].rawvalue()
 
         # ConstantValue_attribute {
         #   u2 attribute_name_index;
@@ -1076,7 +1192,7 @@ class InnerClassesEntry(StaticFieldSet):
         if not self['interface'].value:
             bits.append('class')
 
-        name = str(self['inner_class_info_index'].get_cp_entry())
+        name = self['inner_class_info_index'].str()
         bits.append(name)
         return ' '.join(bits)
 
@@ -1086,6 +1202,12 @@ class LineNumberTableEntry(StaticFieldSet):
         (UInt16, "start_pc"),
         (UInt16, "line_number")
     )
+
+    def createValue(self):
+        return (self['start_pc'].value, self['line_number'].value)
+
+    def createDisplay(self):
+        return "%d @ line %d" % self.value
 
 
 class LocalVariableTableEntry(StaticFieldSet):
@@ -1144,6 +1266,12 @@ class JavaCompiledClassFile(Parser):
         "50.0": "JDK 1.6",
         "51.0": "JDK 1.7",
         "52.0": "JDK 1.8",
+        "53.0": "JDK 9",
+        "54.0": "JDK 10",
+        "55.0": "JDK 11",
+        "56.0": "JDK 12",
+        "57.0": "JDK 13",
+        "58.0": "JDK 14",
     }
 
     # Constants go here since they will probably depend on the detected format
@@ -1160,7 +1288,13 @@ class JavaCompiledClassFile(Parser):
         9: "Fieldref",
         10: "Methodref",
         11: "InterfaceMethodref",
-        12: "NameAndType"
+        12: "NameAndType",
+        15: "MethodHandle",
+        16: "MethodType",
+        17: "Dynamic",
+        18: "InvokeDynamic",
+        19: "Module",
+        20: "Package",
     }
 
     def validate(self):

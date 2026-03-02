@@ -20,76 +20,49 @@ from hachoir.field import (FieldSet,
                            Bit, Bits, Bytes, RawBits, PaddingBits, NullBits,
                            UInt8, UInt16,
                            RawBytes, PaddingBytes,
-                           Enum)
+                           Enum, CustomFragment)
 from hachoir.core.endian import BIG_ENDIAN
-from hachoir.stream import StringInputStream
 from hachoir.core.text_handler import textHandler, hexadecimal
-
-
-class FragmentGroup:
-
-    def __init__(self, parser):
-        self.items = []
-        self.parser = parser
-        self.args = {}
-
-    def add(self, item):
-        self.items.append(item)
-
-    def createInputStream(self):
-        # FIXME: Use lazy stream creation
-        data = []
-        for item in self.items:
-            if 'rawdata' in item:
-                data.append(item["rawdata"].value)
-        data = "".join(data)
-
-        # FIXME: Use smarter code to send arguments
-        tags = {"class": self.parser, "args": self.args}
-        tags = iter(tags.items())
-        return StringInputStream(data, "<fragment group>", tags=tags)
-
-
-class CustomFragment(FieldSet):
-
-    def __init__(self, parent, name, size, parser, description=None, group=None):
-        FieldSet.__init__(self, parent, name, description, size=size)
-        if not group:
-            group = FragmentGroup(parser)
-        self.group = group
-        self.group.add(self)
-
-    def createFields(self):
-        yield RawBytes(self, "rawdata", self.size // 8)
-
-    def _createInputStream(self, **args):
-        return self.group.createInputStream()
 
 
 class Timestamp(FieldSet):
     static_size = 36
 
+    def createFields(self):
+        yield Bits(self, "ts_32_30", 3)
+        yield Bit(self, "sync[]")  # =True
+        yield Bits(self, "ts_29_15", 15)
+        yield Bit(self, "sync[]")  # =True
+        yield Bits(self, "ts_14_0", 15)
+        yield Bit(self, "sync[]")  # =True
+
     def createValue(self):
-        return (self["c"].value << 30) + (self["b"].value << 15) + self["a"].value
+        return ((self["ts_32_30"].value << 30)
+                + (self["ts_29_15"].value << 15)
+                + self["ts_14_0"].value)
+
+
+class SCRExt(FieldSet):
+    static_size = 46
 
     def createFields(self):
-        yield Bits(self, "c", 3)
+        yield Bits(self, "scr_32_30", 3)
         yield Bit(self, "sync[]")  # =True
-        yield Bits(self, "b", 15)
+        yield Bits(self, "scr_29_15", 15)
         yield Bit(self, "sync[]")  # =True
-        yield Bits(self, "a", 15)
+        yield Bits(self, "scr_14_0", 15)
+        yield Bit(self, "sync[]")  # =True
+        yield Bits(self, "scr_ext", 9)
         yield Bit(self, "sync[]")  # =True
 
+    def createDescription(self):
+        return "System Clock Reference (90kHz per tick), with extended 27MHz resolution"
 
-class SCR(FieldSet):
-    static_size = 35
-
-    def createFields(self):
-        yield Bits(self, "scr_a", 3)
-        yield Bit(self, "sync[]")  # =True
-        yield Bits(self, "scr_b", 15)
-        yield Bit(self, "sync[]")  # =True
-        yield Bits(self, "scr_c", 15)
+    def createValue(self):
+        return ((self["scr_32_30"].value << 30)
+                + (self["scr_29_15"].value << 15)
+                + self["scr_14_0"].value
+                + (self["scr_ext"].value / 300.0))
 
 
 class PackHeader(FieldSet):
@@ -98,10 +71,7 @@ class PackHeader(FieldSet):
         if self.stream.readBits(self.absolute_address, 2, self.endian) == 1:
             # MPEG version 2
             yield Bits(self, "sync[]", 2)
-            yield SCR(self, "scr")
-            yield Bit(self, "sync[]")
-            yield Bits(self, "scr_ext", 9)
-            yield Bit(self, "sync[]")
+            yield SCRExt(self, "scr")
             yield Bits(self, "mux_rate", 22)
             yield Bits(self, "sync[]", 2)
             yield PaddingBits(self, "reserved", 5, pattern=1)
@@ -112,12 +82,8 @@ class PackHeader(FieldSet):
         else:
             # MPEG version 1
             yield Bits(self, "sync[]", 4)
-            yield Bits(self, "scr_a", 3)
+            yield Timestamp(self, "scr")
             yield Bit(self, "sync[]")
-            yield Bits(self, "scr_b", 15)
-            yield Bit(self, "sync[]")
-            yield Bits(self, "scr_c", 15)
-            yield Bits(self, "sync[]", 2)
             yield Bits(self, "mux_rate", 22)
             yield Bit(self, "sync[]")
 
@@ -127,17 +93,12 @@ class PackHeader(FieldSet):
         sync0 = self["sync[0]"]
         if (sync0.size == 2 and sync0.value == 1):
             # MPEG2
-            pass
-            if not self["sync[1]"].value \
-                    or not self["sync[2]"].value \
-                    or self["sync[3]"].value != 3:
+            if self["sync[1]"].value != 3:
                 return "Invalid synchronisation bits"
         elif (sync0.size == 4 and sync0.value == 2):
             # MPEG1
             if not self["sync[1]"].value \
-                    or not self["sync[2]"].value \
-                    or self["sync[3]"].value != 3 \
-                    or not self["sync[4]"].value:
+                    or not self["sync[2]"].value:
                 return "Invalid synchronisation bits"
         else:
             return "Unknown version"
@@ -283,14 +244,14 @@ class PacketElement(FieldSet):
             yield Bits(self, "sync[]", 4)  # =2, or 3 if has_dts=True
             yield Timestamp(self, "pts")
         if self["has_dts"].value:
-            if not(self["has_pts"].value):
+            if not self["has_pts"].value:
                 raise ParserError("Invalid PTS/DTS values")
             yield Bits(self, "sync[]", 4)  # =1
             yield Timestamp(self, "dts")
 
         if self["has_escr"].value:
             yield Bits(self, "sync[]", 2)  # =0
-            yield SCR(self, "escr")
+            yield SCRExt(self, "escr")
 
         if self["has_es_rate"].value:
             yield Bit(self, "sync[]")  # =True
@@ -458,7 +419,8 @@ class Stream(FieldSet):
     def createFields(self):
         padding = 0
         position = 0
-        while True:
+        streamlength = self["../length"].value
+        while position < streamlength * 8:
             next = ord(self.parent.stream.readBytes(
                 self.absolute_address + self.current_size + position, 1))
             if next == 0xff:
@@ -599,7 +561,7 @@ class MPEGVideoFile(Parser):
                 # force chunk to be processed, so that CustomFragments are
                 # complete
                 chunk['content/data']
-            except:
+            except Exception:
                 pass
             yield chunk
 

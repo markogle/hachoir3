@@ -8,7 +8,6 @@ from hachoir.core.error import warning, info
 from hachoir.parser import ValidateError, HachoirParserList
 from hachoir.stream import FileInputStream
 import weakref
-import collections
 
 
 class QueryParser(object):
@@ -51,7 +50,7 @@ class QueryParser(object):
         if tag is None:
             self.parsers.clear()
             return []
-        elif isinstance(tag, collections.Callable):
+        elif callable(tag):
             parsers = [parser for parser in self.parsers if tag(parser)]
             for parser in parsers:
                 self.parsers.remove(parser)
@@ -104,15 +103,15 @@ class QueryParser(object):
                         setattr(parser_obj, key, value)
                 return parser_obj
             except ValidateError as err:
-                res = str(err)
                 if fallback and self.fallback:
                     fb = parser
-            except Exception as err:
-                res = str(err)
-            if warn:
                 if parser == self.other:
                     warn = info
-                warn("Skip parser '%s': %s" % (parser.__name__, res))
+                warn("Skip parser '%s': %s" % (parser.__name__, err))
+            except Exception as err:
+                if parser == self.other:
+                    warn = info
+                warn("Skip parser '%s': %s" % (parser.__name__, err))
             fallback = False
         if self.use_fallback and fb:
             warning("Force use of parser '%s'" % fb.__name__)
@@ -128,10 +127,14 @@ def createParser(filename, real_filename=None, tags=None):
     Create a parser from a file or returns None on error.
 
     Options:
-    - filename (unicode): Input file name ;
-    - real_filename (str|unicode): Real file name.
+    - file (str|io.IOBase): Input file name or
+        a byte io.IOBase stream  ;
+    - real_filename (str): Real file name.
     """
     if not tags:
         tags = []
     stream = FileInputStream(filename, real_filename, tags=tags)
-    return guessParser(stream)
+    guess = guessParser(stream)
+    if guess is None:
+        stream.close()
+    return guess

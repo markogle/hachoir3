@@ -140,7 +140,8 @@ class RunList(FieldSet):
         for entry in self.array('entry'):
             length, offset = entry.value
             curoff += offset
-            runs.append((length, curoff))
+            if entry['header'].value != 0:
+                runs.append((length, curoff))
         return runs
 
 
@@ -264,7 +265,7 @@ class Attribute(FieldSet):
     ATTR_INFO = {
         0x10: ('standard_info', 'STANDARD_INFORMATION ', parseStandardInfo),
         0x20: ('attr_list', 'ATTRIBUTE_LIST ', None),
-        0x30: ('filename', 'FILE_NAME ', parseFilename),
+        0x30: ('filename[]', 'FILE_NAME ', parseFilename),
         0x40: ('vol_ver', 'VOLUME_VERSION', None),
         0x50: ('security', 'SECURITY_DESCRIPTOR ', None),
         0x60: ('vol_name', 'VOLUME_NAME ', None),
@@ -291,7 +292,7 @@ class File(FieldSet):
 
     def createFields(self):
         yield Bytes(self, "signature", 4, "Usually the magic is 'FILE'")
-        yield UInt16(self, "usa_ofs", "Update Sequence Array offset")
+        yield UInt16(self, "usa_offset", "Update Sequence Array offset")
         yield UInt16(self, "usa_count", "Update Sequence Array count")
         yield UInt64(self, "lsn", "$LogFile sequence number for this record")
         yield UInt16(self, "sequence_number", "Number of times this mft record has been reused")
@@ -306,6 +307,15 @@ class File(FieldSet):
         # The below fields are specific to NTFS 3.1+ (Windows XP and above)
         yield NullBytes(self, "reserved", 2)
         yield UInt32(self, "mft_record_number", "Number of this mft record")
+
+        if self["usa_offset"].value:
+            padding = self.seekByte(self["usa_offset"].value, relative=True)
+            if padding:
+                yield padding
+
+            yield UInt16(self, "usa_number")
+            for i in range(self["usa_count"].value):
+                yield UInt16(self, "usa_value[]")
 
         padding = self.seekByte(self["attrs_offset"].value, relative=True)
         if padding:
@@ -328,10 +338,22 @@ class File(FieldSet):
 
     def createDescription(self):
         text = "File"
-        if "filename/filename" in self:
-            text += ' "%s"' % self["filename/filename"].value
-        if "filename/real_size" in self:
-            text += ' (%s)' % self["filename/real_size"].display
+        fileattr = None
+        for fn in self.array('filename'):
+            if 'filename' not in fn and fileattr is not None:
+                # Prefer file attributes with filenames
+                continue
+            if 'Win32' in fn['filename_namespace'].display:
+                # Prefer Win32 filename
+                fileattr = fn
+                break
+            else:
+                fileattr = fn
+
+        if fileattr:
+            if 'filename' in fileattr:
+                text += ' "%s"' % fileattr["filename"].value
+            text += ' (%s)' % fileattr["real_size"].display
         if "standard_info/file_attr" in self:
             text += ', %s' % self["standard_info/file_attr"].display
         return text

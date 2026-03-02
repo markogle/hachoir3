@@ -318,7 +318,7 @@ class ID3_TrackLength(FieldSet):
         try:
             ms = int(field.value)
             return humanDuration(ms)
-        except:
+        except Exception:
             return field.value
 
 
@@ -451,7 +451,7 @@ class ID3_Chunk(FieldSet):
 
         if size:
             cls = None
-            if not(is_compressed):
+            if not is_compressed:
                 tag = self["tag"].value
                 if tag in ID3_Chunk.handler:
                     cls = ID3_Chunk.handler[tag]

@@ -57,8 +57,8 @@ class ZeroTerminatedNumber(Field):
         return self._value
 
 
-def move_to_front(l, c):
-    l[:] = l[c:c + 1] + l[0:c] + l[c + 1:]
+def move_to_front(seq, index):
+    seq[:] = seq[index:index + 1] + seq[0:index] + seq[index + 1:]
 
 
 class Bzip2Bitmap(FieldSet):
@@ -218,7 +218,7 @@ class Bzip2Parser(Parser):
     def validate(self):
         if self.stream.readBytes(0, 3) != b'BZh':
             return "Wrong file signature"
-        if not("1" <= self["blocksize"].value <= "9"):
+        if not ("1" <= self["blocksize"].value <= "9"):
             return "Wrong blocksize"
         return True
 

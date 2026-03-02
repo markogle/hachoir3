@@ -9,18 +9,20 @@ strings, bits, padding types, floats, etc. Hachoir is the French word for a
 meat grinder (meat mincer), which is used by butchers to divide meat into long
 tubes; Hachoir is used by computer butchers to divide binary files into fields.
 
-* `Hachoir3 website <http://hachoir3.readthedocs.io/>`_ (this site)
-* `Hachoir3 at GitHub <https://github.com/haypo/hachoir3>`_ (source code, bugs)
+* `Hachoir website <http://hachoir.readthedocs.io/>`_ (this site)
+* `Hachoir at GitHub <https://github.com/vstinner/hachoir>`_ (source code, bugs)
 
 Command line tools using Hachoir parsers:
 
 * :ref:`hachoir-metadata <metadata>`: get metadata from binary files
 * :ref:`hachoir-urwid <urwid>`: display the content of a binary file in text mode
+* :ref:`hachoir-wx <wx>`: display the content of a binary file in GUI mode
 * :ref:`hachoir-grep <grep>`: find a text pattern in a binary file
 * :ref:`hachoir-strip <strip>`: modify a file to remove metadata
+* :ref:`hachoir-list <list>`: print decoded content of a binary file
 
-See also `Hachoir at Bitbucket <https://bitbucket.org/haypo/hachoir/>`_:
-original Hachoir for Python 2.
+.. image:: images/urwid.png
+   :alt: hachoir-urwid screenshot (MP3 audio file)
 
 
 User Guide
@@ -32,9 +34,11 @@ User Guide
    install
    metadata
    urwid
+   wx
    subfile
    grep
    strip
+   list
 
 
 Developer Guide

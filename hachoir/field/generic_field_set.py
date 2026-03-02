@@ -117,7 +117,7 @@ class GenericFieldSet(BasicFieldSet):
         _getSize, doc="Size in bits, may create all fields to get size")
 
     def _getCurrentSize(self):
-        assert not(self.done)
+        assert not (self.done)
         return self._current_size
     current_size = property(_getCurrentSize)
 
@@ -252,7 +252,7 @@ class GenericFieldSet(BasicFieldSet):
                     self._fields.append(field._name, field)
             self._current_size = self._size
         else:
-            assert size < self._size or self._size is None
+            assert self._size is None or size < self._size
             self._size = size
         if self._size == self._current_size:
             self._field_generator = None

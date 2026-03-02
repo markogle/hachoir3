@@ -3,6 +3,9 @@ ELF (Unix/BSD executable file format) parser.
 
 Author: Victor Stinner, Robert Xiao
 Creation date: 08 may 2006
+Reference:
+- System V Application Binary Interface - DRAFT - 10 June 2013
+  http://www.sco.com/developers/gabi/latest/contents.html
 """
 
 from hachoir.parser import HachoirParser
@@ -14,6 +17,7 @@ from hachoir.core.endian import LITTLE_ENDIAN, BIG_ENDIAN
 
 
 class ElfHeader(FieldSet):
+    MAGIC = b"\x7FELF"
     LITTLE_ENDIAN_ID = 1
     BIG_ENDIAN_ID = 2
     MACHINE_NAME = {
@@ -37,6 +41,7 @@ class ElfHeader(FieldSet):
         19: "Intel 80960",
         20: "PowerPC 32-bit",
         21: "PowerPC 64-bit",
+        22: "IBM S390",
         36: "NEC V800",
         37: "Fujitsu FR20",
         38: "TRW RH-32",
@@ -126,7 +131,7 @@ class ElfHeader(FieldSet):
         yield UInt16(self, "shstrndx", "Section header string table index")
 
     def isValid(self):
-        if self["signature"].value != b"\x7FELF":
+        if self["signature"].value != self.MAGIC:
             return "Wrong ELF signature"
         if self["class"].value not in self.CLASS_NAME:
             return "Unknown class"
@@ -138,24 +143,32 @@ class ElfHeader(FieldSet):
 class SectionFlags(FieldSet):
 
     def createFields(self):
+        field_thunks = (
+            lambda: Bit(self, "is_writable", "Section contains writable data?"),
+            lambda: Bit(self, "is_alloc", "Section occupies memory?"),
+            lambda: Bit(self, "is_exec", "Section contains executable instructions?"),
+            lambda: NullBits(self, "reserved[]", 1),
+            lambda: Bit(self, "is_merged", "Section might be merged to eliminate duplication?"),
+            lambda: Bit(self, "is_strings", "Section contains nul terminated strings?"),
+            lambda: Bit(self, "is_info_link", "sh_info field of this section header holds section header table index?"),
+            lambda: Bit(self, "preserve_link_order", "Section requires special ordering for linker?"),
+            lambda: Bit(self, "os_nonconforming", "Section rqeuires OS-specific processing?"),
+            lambda: Bit(self, "is_group", "Section is a member of a section group?"),
+            lambda: Bit(self, "is_tls", "Section contains TLS data?"),
+            lambda: Bit(self, "is_compressed", "Section contains compressed data?"),
+            lambda: NullBits(self, "reserved[]", 8),
+            lambda: RawBits(self, "os_specific", 8, "OS specific flags"),
+            lambda: RawBits(self, "processor_specific", 4, "Processor specific flags"),
+        )
+
         if self.root.endian == BIG_ENDIAN:
             if self.root.is64bit:
                 yield RawBits(self, "reserved[]", 32)
-            yield RawBits(self, "processor_specific", 4, "Processor specific flags")
-            yield NullBits(self, "reserved[]", 17)
-            yield Bit(self, "is_tls", "Section contains TLS data?")
-            yield NullBits(self, "reserved[]", 7)
-            yield Bit(self, "is_exec", "Section contains executable instructions?")
-            yield Bit(self, "is_alloc", "Section occupies memory?")
-            yield Bit(self, "is_writable", "Section contains writable data?")
+            for t in reversed(field_thunks):
+                yield t()
         else:
-            yield Bit(self, "is_writable", "Section contains writable data?")
-            yield Bit(self, "is_alloc", "Section occupies memory?")
-            yield Bit(self, "is_exec", "Section contains executable instructions?")
-            yield NullBits(self, "reserved[]", 7)
-            yield Bit(self, "is_tls", "Section contains TLS data?")
-            yield RawBits(self, "processor_specific", 4, "Processor specific flags")
-            yield NullBits(self, "reserved[]", 17)
+            for t in field_thunks:
+                yield t()
             if self.root.is64bit:
                 yield RawBits(self, "reserved[]", 32)
 
@@ -166,6 +179,7 @@ class SymbolStringTableOffset(UInt32):
         section_index = self['/header/shstrndx'].value
         section = self['/section[' + str(section_index) + ']']
         text = section.value[self.value:]
+        text = text.decode('utf-8')
         return text.split('\0', 1)[0]
 
 
@@ -253,6 +267,14 @@ class ProgramHeader32(FieldSet):
         5: "Reserved, unspecified semantics",
         6: "Entry for header table itself",
         7: "Thread Local Storage segment",
+        8: "Number of defined types",
+        0x6474e550: "GCC .eh_frame_hdr segment",
+        0x6474e551: "Indicates stack executability",
+        0x6474e552: "Read-only after relocation",
+        0x6474e553: "GNU property",
+        0x6474e554: "SFrame segment",
+        0x6ffffffa: "Sun Specific segment",
+        0x6ffffffb: "Sun Stack segment",
         0x70000000: "MIPS_REGINFO",
     }
     static_size = 32 * 8
@@ -286,7 +308,6 @@ class ProgramHeader64(ProgramHeader32):
 
 
 class ElfFile(HachoirParser, RootSeekableFieldSet):
-    MAGIC = b"\x7FELF"
     PARSER_TAGS = {
         "id": "elf",
         "category": "program",
@@ -298,7 +319,7 @@ class ElfFile(HachoirParser, RootSeekableFieldSet):
             "application/x-sharedlib",
             "application/x-executable-file",
             "application/x-coredump"),
-        "magic": ((b"\x7FELF", 0),),
+        "magic": ((ElfHeader.MAGIC, 0),),
         "description": "ELF Unix/BSD program/library"
     }
     endian = LITTLE_ENDIAN
@@ -309,7 +330,7 @@ class ElfFile(HachoirParser, RootSeekableFieldSet):
         HachoirParser.__init__(self, stream, **args)
 
     def validate(self):
-        if self.stream.readBytes(0, len(self.MAGIC)) != self.MAGIC:
+        if self.stream.readBytes(0, len(ElfHeader.MAGIC)) != ElfHeader.MAGIC:
             return "Invalid magic"
         err = self["header"].isValid()
         if err:
@@ -343,7 +364,8 @@ class ElfFile(HachoirParser, RootSeekableFieldSet):
 
         for index in range(self["header/shnum"].value):
             field = self["section_header[" + str(index) + "]"]
-            if field['size'].value != 0:
+            if field['size'].value != 0 and field['type'].value != 8:
+                # skip NOBITS sections
                 self.seekByte(field['LMA'].value, relative=False)
                 yield RawBytes(self, "section[" + str(index) + "]", field['size'].value)
 

@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python: ['3.11']
+        include:
+          # Python 3.6 uses old Ubuntu 20.04
+          - os: ubuntu-20.04
+            python: '3.6'
+
+    steps:
+        # https://github.com/actions/checkout
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        # https://github.com/actions/setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Tox and any other packages
+        run: pip install tox
+      - name: Display the Python version
+        run: python -VV
+      - name: Run Tox
+        run: tox

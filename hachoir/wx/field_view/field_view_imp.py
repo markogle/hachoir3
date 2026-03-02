@@ -6,14 +6,14 @@ MAXITEMS = 1000
 
 class field_view_imp_t:
     def __init__(self):
-        self.addr_func = lambda field: field._getAbsoluteAddress()
+        self.addr_func = lambda field: field.absolute_address
         self.format_addr = lambda field: format_addr_hex(self.addr_func(field))
 
         self.col_str_table = [
             lambda f: self.format_addr(f),          # address
             format_name,                            # name
             lambda f: f.getFieldType(),             # type
-            lambda f: format_size(f._getSize()),    # size
+            lambda f: format_size(f.size),    # size
             format_data,                            # data
             format_desc                             # description
         ]
@@ -56,11 +56,11 @@ class field_view_imp_t:
         self.dispatcher.trigger('field_show_ops', field)
 
     def on_address_relative(self, dispatcher):
-        self.addr_func = lambda field: field._getAddress()
+        self.addr_func = lambda field: field.address
         self.refill_view()
 
     def on_address_absolute(self, dispatcher):
-        self.addr_func = lambda field: field._getAbsoluteAddress()
+        self.addr_func = lambda field: field.absolute_address
         self.refill_view()
 
     def on_address_hexadecimal(self, dispatcher):
@@ -84,7 +84,7 @@ class field_view_imp_t:
             if field_count > MAXITEMS:
                 break
 
-        if self.fields._getParent() is not None:
+        if self.fields.parent is not None:
             self.has_parent = True
             self.view.SetItemCount(field_count + 1)
         else:
@@ -125,7 +125,7 @@ class field_view_imp_t:
             self.fields[item + MAXITEMS]
             if item + MAXITEMS + parent_count > self.view.GetItemCount():
                 self.view.SetItemCount(item + MAXITEMS + parent_count)
-        except:
+        except Exception:
             if len(self.fields) + parent_count != self.view.GetItemCount():
                 self.view.SetItemCount(len(self.fields) + parent_count)
         field = self.fields[item]

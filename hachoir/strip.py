@@ -278,10 +278,14 @@ def main():
         if parser:
             editor = createEditor(parser)
             ok &= stripEditor(editor, filename + ".new",
-                              level, not(values.quiet))
+                              level, not values.quiet)
         else:
             ok = False
     if ok:
         sys.exit(0)
     else:
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -24,11 +24,11 @@ from hachoir.parser import HachoirParser
 from hachoir.field import (
     FieldSet, ParserError, SeekableFieldSet, RootSeekableFieldSet,
     UInt8, UInt16, UInt32, UInt64, TimestampWin64, Enum,
-    Bytes, NullBytes, String)
+    Bytes, NullBytes, String, CustomFragment)
 from hachoir.core.text_handler import filesizeHandler
 from hachoir.core.endian import LITTLE_ENDIAN
 from hachoir.parser.common.win32 import GUID
-from hachoir.parser.misc.msoffice import PROPERTY_NAME, RootEntry, RawParser, CustomFragment
+from hachoir.parser.misc.msoffice import PROPERTY_NAME, RootEntry, RawParser
 
 MIN_BIG_BLOCK_LOG2 = 6   # 512 bytes
 MAX_BIG_BLOCK_LOG2 = 14  # 64 kB
@@ -211,7 +211,7 @@ class OLE2_File(HachoirParser, RootSeekableFieldSet):
             return "Unknown major version (%s)" % self["header/ver_maj"].value
         if self["header/endian"].value not in (b"\xFF\xFE", b"\xFE\xFF"):
             return "Unknown endian (%s)" % self["header/endian"].raw_display
-        if not(MIN_BIG_BLOCK_LOG2 <= self["header/bb_shift"].value <= MAX_BIG_BLOCK_LOG2):
+        if not (MIN_BIG_BLOCK_LOG2 <= self["header/bb_shift"].value <= MAX_BIG_BLOCK_LOG2):
             return "Invalid (log 2 of) big block size (%s)" % self["header/bb_shift"].value
         if self["header/bb_shift"].value < self["header/sb_shift"].value:
             return "Small block size (log2=%s) is bigger than big block size (log2=%s)!" \
@@ -300,6 +300,7 @@ class OLE2_File(HachoirParser, RootSeekableFieldSet):
                 self, name, size, parser, desc, fragment_group)
             if not fragment_group:
                 fragment_group = field.group
+                fragment_group.args["ole2"] = field.root
                 fragment_group.args["datasize"] = property["size"].value
                 fragment_group.args["ole2name"] = property["name"].value
             yield field
@@ -334,7 +335,7 @@ class OLE2_File(HachoirParser, RootSeekableFieldSet):
             index = block // items_per_fat
             try:
                 block = fat[index]["index[%u]" % block].value
-            except LookupError as err:
+            except LookupError:
                 break
 
     def readBFAT(self):

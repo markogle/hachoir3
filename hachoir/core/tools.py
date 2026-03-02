@@ -318,6 +318,8 @@ def makePrintable(data, charset, quote=None, smart=True):
             data = ''.join((quote, data, quote))
     elif quote:
         data = "(empty)"
+    else:
+        data = ""
     data = data.encode(charset, "backslashreplace")
     if smart:
         # Replace \x00\x01 by \0\1
@@ -388,16 +390,16 @@ def binarySearch(seq, cmp_func):
 
 def lowerBound(seq, cmp_func):
     f = 0
-    l = len(seq)
-    while l > 0:
-        h = l >> 1
+    seqlen = len(seq)
+    while seqlen > 0:
+        h = seqlen >> 1
         m = f + h
         if cmp_func(seq[m]):
             f = m
             f += 1
-            l -= h + 1
+            seqlen -= h + 1
         else:
-            l = h
+            seqlen = h
     return f
 
 
@@ -491,7 +493,7 @@ def timestampUNIX(value):
     """
     if not isinstance(value, (float, int)):
         raise TypeError("timestampUNIX(): an integer or float is required")
-    if not(0 <= value <= 2147483647):
+    if not (0 <= value <= 2147483647):
         raise ValueError("timestampUNIX(): value have to be in 0..2147483647")
     return UNIX_TIMESTAMP_T0 + timedelta(seconds=value)
 
@@ -512,7 +514,7 @@ def timestampMac32(value):
     """
     if not isinstance(value, (float, int)):
         raise TypeError("an integer or float is required")
-    if not(0 <= value <= 4294967295):
+    if not (0 <= value <= 4294967295):
         return "invalid Mac timestamp (%s)" % value
     return MAC_TIMESTAMP_T0 + timedelta(seconds=value)
 
@@ -532,6 +534,23 @@ def durationWin64(value):
     if value < 0:
         raise ValueError("value have to be a positive or nul integer")
     return timedelta(microseconds=value / 10)
+
+
+def durationMillisWin64(value):
+    """
+    Convert Windows 64-bit duration to string. The timestamp format is
+    a 64-bit number: number of milliseconds. See also timestampMilliWin64().
+
+    >>> str(durationMillisWin64(107258))
+    '0:01:47.258000'
+    >>> str(durationMillisWin64(214628))
+    '0:03:34.628000'
+    """
+    if not isinstance(value, (float, int)):
+        raise TypeError("an integer or float is required")
+    if value < 0:
+        raise ValueError("value have to be a positive or nul integer")
+    return timedelta(microseconds=value * 1000)
 
 
 # Start of 64-bit Windows timestamp: 1st January 1600 at 00:00

@@ -70,8 +70,8 @@ class Metadata(Logger):
         >>> from datetime import timedelta
         >>> a = RootMetadata()
         >>> a.duration = timedelta(seconds=2300)
-        >>> a.get('duration')
-        datetime.timedelta(0, 2300)
+        >>> a.get('duration') == timedelta(seconds=2300)
+        True
         >>> a.get('author', 'Anonymous')
         'Anonymous'
         """
@@ -179,6 +179,45 @@ class Metadata(Logger):
         else:
             return None
 
+    def exportDictionary(self, priority=None, human=True, title=None):
+        r"""
+        Convert metadata to python Dictionary and skip datas
+        with priority lower than specified priority.
+
+        Default priority is Metadata.MAX_PRIORITY. If human flag is True, data
+        key are translated to better human name (eg. "bit_rate" becomes
+        "Bit rate") which may be translated using gettext.
+
+        If priority is too small, metadata are empty and so None is returned.
+
+        """
+        if priority is not None:
+            priority = max(priority, MIN_PRIORITY)
+            priority = min(priority, MAX_PRIORITY)
+        else:
+            priority = MAX_PRIORITY
+        if not title:
+            title = self.header
+        text = {}
+        text[title] = {}
+        for data in sorted(self):
+            if priority < data.priority:
+                break
+            if not data.values:
+                continue
+            if human:
+                field = data.description
+            else:
+                field = data.key
+            text[title][field] = {}
+            for item in data.values:
+                if human:
+                    value = item.text
+                else:
+                    value = makeUnicode(item.value)
+                text[title][field] = value
+        return text
+
     def __bool__(self):
         return any(item for item in self.__data.values())
 
@@ -204,7 +243,7 @@ class MultipleMetadata(RootMetadata):
         return self.__groups[key]
 
     def iterGroups(self):
-        return iter(self.__groups.values())
+        return iter(self.__groups.values)
 
     def __bool__(self):
         if RootMetadata.__bool__(self):
@@ -251,6 +290,22 @@ class MultipleMetadata(RootMetadata):
             return text
         else:
             return None
+
+    def exportDictionary(self, priority=None, human=True):
+        common = Metadata.exportDictionary(self, priority, human)
+        if common:
+            text = common
+        else:
+            text = {}
+        for key, metadata in self.__groups.items():
+            if not human:
+                title = key
+            else:
+                title = None
+            value = metadata.exportDictionary(priority, human, title=title)
+            if value:
+                text.update(value)
+        return text
 
 
 def registerExtractor(parser, extractor):

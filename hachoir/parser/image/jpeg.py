@@ -205,7 +205,7 @@ class SOSComponent(FieldSet):
     def createFields(self):
         comp_id = UInt8(self, "component_id")
         yield comp_id
-        if not(1 <= comp_id.value <= self["../nr_components"].value):
+        if not (1 <= comp_id.value <= self["../nr_components"].value):
             raise ParserError("JPEG error: Invalid component-id")
         yield Bits(self, "dc_coding_table", 4, "DC entropy coding table destination selector")
         yield Bits(self, "ac_coding_table", 4, "AC entropy coding table destination selector")
@@ -387,7 +387,10 @@ class JpegImageData(FieldSet):
             end = self.stream.searchBytes(b"\xff", start, MAX_FILESIZE * 8)
             if end is None:
                 # this is a bad sign, since it means there is no terminator
-                # we ignore this; it likely means a truncated image
+                # this likely means a truncated image:
+                # set the size to the remaining length of the stream
+                # to avoid being forced to parse subfields to calculate size
+                self._size = self.stream._size - self.absolute_address
                 break
             if self.stream.readBytes(end, 2) == b'\xff\x00':
                 # padding: false alarm
@@ -634,9 +637,12 @@ class JpegFile(Parser):
     def createContentSize(self):
         if "end" in self:
             return self["end"].absolute_address + self["end"].size
-        if "data" not in self:
+        if "data" in self:
+            start = self["data"].absolute_address
+        elif "image_data[0]" in self:
+            start = self["image_data[0]"].absolute_address
+        else:
             return None
-        start = self["data"].absolute_address
         end = self.stream.searchBytes(b"\xff\xd9", start, MAX_FILESIZE * 8)
         if end is not None:
             return end + 16

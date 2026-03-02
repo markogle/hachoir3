@@ -101,7 +101,7 @@ class EditableBits(EditableFixedField):
             self._is_altered = True
 
     def _setValue(self, value):
-        if not(0 <= value < (1 << self._size)):
+        if not (0 <= value < (1 << self._size)):
             raise ValueError("Invalid value, must be in range %s..%s"
                              % (0, (1 << self._size) - 1))
         self._value = value
@@ -135,7 +135,7 @@ class EditableString(EditableField):
     def __init__(self, parent, name, *args, **kw):
         if len(args) == 2:
             value = args[1]
-            assert isinstance(value, str)  # TODO: support Unicode
+            assert isinstance(value, bytes)  # TODO: support Unicode
         elif not args:
             value = None
         else:
@@ -164,6 +164,7 @@ class EditableString(EditableField):
         size = len(value)
         if self._format in self.MAX_SIZE and self.MAX_SIZE[self._format] < size:
             raise ValueError("String is too big")
+        assert isinstance(value, bytes)
         self._value = value
 
     def _computeSize(self):
@@ -247,7 +248,7 @@ class EditableInteger(EditableFixedField):
         else:
             valid = self.VALID_VALUE_UNSIGNED
         minval, maxval = valid[self._size]
-        if not(minval <= value <= maxval):
+        if not (minval <= value <= maxval):
             raise ValueError("Invalid value, must be in range %s..%s"
                              % (minval, maxval))
         self._value = value
@@ -273,13 +274,13 @@ class EditableTimestampMac32(EditableFixedField):
         EditableFixedField.__init__(self, parent, name, value, 32)
 
     def _setValue(self, value):
-        if not(self.minval <= value <= self.maxval):
+        if not (self.minval <= value <= self.maxval):
             raise ValueError("Invalid value, must be in range %s..%s"
                              % (self.minval, self.maxval))
         self._value = value
 
     def _write(self, output):
-        timestamp = int((self.value - self.minval).total_seconds())
+        timestamp = int((self._value - self.minval).total_seconds())
         output.writeBits(self._size, timestamp, self._parent.endian)
 
 

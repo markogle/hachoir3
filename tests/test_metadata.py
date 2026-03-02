@@ -46,6 +46,48 @@ class TestMetadata(unittest.TestCase):
             sys.stdout.write("ok\n")
         return metadata
 
+    def test_dict_output(self):
+        required_meta = {'Common': {'duration': '0:00:17.844000',
+                                    'creation_date': '2006-08-16 11:04:36',
+                                    'producer': 'libebml v0.7.7 + libmatroska v0.8.0',
+                                    'mime_type': 'video/x-matroska',
+                                    'endian': 'Big endian'
+                                    },
+                         'video[1]': {'language': 'French',
+                                      'width': '384',
+                                      'height': '288',
+                                      'compression': 'V_MPEG4/ISO/AVC'
+                                      },
+                         'audio[1]': {'title': 'travail = aliénation (extrait)',
+                                      'language': 'French',
+                                      'nb_channel': '1',
+                                      'sample_rate': '44100.0',
+                                      'compression': 'A_VORBIS'
+                                      }
+                         }
+        with createParser(os.path.join(DATADIR, "flashmob.mkv")) as parser:
+            extractor = extractMetadata(parser)
+        meta = extractor.exportDictionary(human=False)
+
+        self.assertEqual(required_meta, meta)
+
+    def test_plaintext_output(self):
+        expected_plaintext = [['Video stream:',
+                               '- Language: French',
+                               '- Image width: 384 pixels',
+                               '- Image height: 288 pixels',
+                               '- Compression: V_MPEG4/ISO/AVC'],
+                              ['Audio stream:',
+                               '- Title: travail = aliénation (extrait)',
+                               '- Language: French',
+                               '- Channel: mono',
+                               '- Sample rate: 44.1 kHz',
+                               '- Compression: A_VORBIS']]
+        with createParser(os.path.join(DATADIR, "flashmob.mkv")) as parser:
+            extractor = extractMetadata(parser)
+        groups = [g.exportPlaintext() for g in extractor.iterGroups()]
+        self.assertEqual(groups, expected_plaintext)
+
     def check_attr(self, metadata, name, value):
         if self.verbose:
             sys.stdout.write("  - Check metadata %s=%s: " %
@@ -83,8 +125,8 @@ class TestMetadata(unittest.TestCase):
             read = reads[index]
 
             # Check type
-            if type(read) != type(value) \
-                    and not(isinstance(value, int) and isinstance(value, int)):
+            if type(read) is not type(value) \
+                    and not (isinstance(value, int) and isinstance(value, int)):
                 if self.verbose:
                     sys.stdout.write("wrong type (%s instead of %s)!\n"
                                      % (type(read).__name__, type(value).__name__))
@@ -255,7 +297,7 @@ class TestMetadata(unittest.TestCase):
         meta = self.extract("matrix_ping_pong.wmv")
         self.check_attr(meta, "title", "欽ちゃん＆香取慎吾の全日本仮装大賞")
         self.check_attr(meta, "duration", timedelta(
-            minutes=1, seconds=47, milliseconds=258))
+            minutes=1, seconds=43, milliseconds=900))
         self.check_attr(meta, "creation_date", datetime(
             2003, 6, 16, 7, 57, 23, 235000))
         self.check_attr(meta, "audio[1]/sample_rate", 8000)
@@ -461,6 +503,17 @@ class TestMetadata(unittest.TestCase):
         self.check_attr(meta, 'width_dpi', 200)
         self.check_attr(meta, 'height_dpi', 200)
         self.check_attr(meta, 'producer', 'mieconvert')
+
+    def test_cr2(self):
+        meta = self.extract("canon.raw.cr2")
+        self.check_attr(meta, 'width', 5184)
+        self.check_attr(meta, 'height', 3456)
+        self.check_attr(meta, 'creation_date',
+                        datetime(2015, 11, 15, 13, 35, 29))
+        self.check_attr(meta, 'date_time_original',
+                        datetime(2015, 11, 15, 13, 35, 29))
+        self.check_attr(meta, 'camera_manufacturer', 'Canon')
+        self.check_attr(meta, 'camera_model', 'Canon EOS REBEL T5i')
 
 
 class TestMetadataCommandLine(unittest.TestCase):

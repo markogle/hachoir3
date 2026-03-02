@@ -63,7 +63,7 @@ def parseOptions():
         if len(arguments) < 2:
             parser.print_help()
             sys.exit(1)
-        pattern = str(arguments[0], "ascii")
+        pattern = arguments[0]
         filenames = arguments[1:]
     return values, pattern, filenames
 
@@ -169,11 +169,11 @@ class ConsoleGrep(Grep):
 def runGrep(values, pattern, filenames):
     grep = ConsoleGrep()
     grep.display_filename = (1 < len(filenames))
-    grep.display_address = not(values.no_addr)
+    grep.display_address = not values.no_addr
     grep.display_path = values.path
-    grep.display_value = not(values.no_value)
+    grep.display_value = not values.no_value
     grep.display_percent = values.percent
-    grep.display = not(values.bench)
+    grep.display = not values.bench
     for filename in filenames:
         grep.searchFile(filename, pattern, case_sensitive=values.case)
 
@@ -190,3 +190,7 @@ def main():
     except KeyboardInterrupt:
         print("Program interrupted (CTRL+C).")
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

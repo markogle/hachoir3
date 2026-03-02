@@ -316,11 +316,11 @@ class InodeGen:
             error("(FAT) address %u doesn't point to a padding field" % address)
             return
         if last:
-            next = None
+            link_next = None
         else:
-            def next():
+            def link_next():
                 return self(field)
-        field.setLinks(prev.first, next)
+        field.setLinks(prev.first, link_next)
         self.root.writeFieldsIn(padding, address, (field,))
         return field
 
@@ -391,12 +391,12 @@ class FAT_FS(Parser):
         # Read inode table (Directory)
         self.cluster_size = boot["cluster_size"].value * self.sector_size * 8
         self.fat = self["fat[0]"]
-        if "root_start" in boot:
+        if "root_start" in boot and boot["root_start"].value != 2:
             self.target_size = 0
             self.getCluster = lambda: boot["root_start"].value
             yield InodeLink(self, "root", "root")
         else:
-            yield Directory(self, "root[]", size=boot["max_root"].value * 32 * 8)
+            yield Directory(self, "root[]", size=max(boot["max_root"].value * 32 * 8, boot["cluster_size"].value * self.sector_size * 8))
         self.data_start = self.current_size - 2 * self.cluster_size
         sectors = boot["sectors1"].value
         if not sectors:

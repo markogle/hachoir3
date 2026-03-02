@@ -3,8 +3,6 @@ Very basic field: raw content with a size in byte. Use this class for
 unknown content.
 """
 
-import types
-
 from hachoir.field import Field, FieldError
 from hachoir.core.tools import makePrintable
 from hachoir.core import config
@@ -22,16 +20,16 @@ class RawBytes(Field):
 
     def __init__(self, parent, name, length, description="Raw data"):
         assert issubclass(parent.__class__, Field)
-        if not(0 < length <= MAX_LENGTH):
+        if not (0 < length <= MAX_LENGTH):
             raise FieldError("Invalid RawBytes length (%s)!" % length)
         Field.__init__(self, parent, name, length * 8, description)
         self._display = None
 
     def _createDisplay(self, human):
         max_bytes = config.max_byte_length
-        if isinstance(self._getValue, types.FunctionType):
+        try:
             display = makePrintable(self.value[:max_bytes], "ASCII")
-        else:
+        except Exception:
             if self._display is None:
                 address = self.absolute_address
                 length = min(self._size // 8, max_bytes)

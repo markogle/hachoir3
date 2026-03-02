@@ -1,18 +1,19 @@
 from wx import App, EVT_MENU, ID_OK
 from wx.xrc import XRCID
 
+import hachoir.core.config as config
 from hachoir.parser.guess import createParser, guessParser
 from hachoir.stream.input import FileFromInputStream
 from hachoir.wx.dispatcher import dispatcher_t
 from hachoir.wx import frame_view, field_view, hex_view, tree_view
 from hachoir.wx.dialogs import file_open_dialog
 from hachoir.wx.unicode import force_unicode
-from hachoir.version import VERSION
+from hachoir import __version__
 
 
 class app_t(App):
     def __init__(self, filename=None):
-        print("[+] Run hachoir-wx version %s" % VERSION)
+        print("[+] Run hachoir-wx version %s" % __version__)
         self.filename = filename
         App.__init__(self, False)
 
@@ -44,6 +45,10 @@ class app_t(App):
         stream = field.getSubIStream()
         parser = guessParser(stream)
         if not parser:
+            msg = '[-] Unable to parse substream.'
+            if not config.verbose:
+                msg += ' (use --verbose to see validation errors)'
+            print(msg)
             return
         print('[+] Substream parser: %s.%s' % (parser.__module__, type(parser).__name__))
         subfile = FileFromInputStream(stream)

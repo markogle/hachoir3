@@ -12,10 +12,11 @@ Sources:
   https://ext4.wiki.kernel.org/index.php/Ext4_Disk_Layout
 """
 
-from hachoir.parser import HachoirParser
+from hachoir.parser import HachoirParser, Parser
 from hachoir.field import (RootSeekableFieldSet, SeekableFieldSet, FieldSet, ParserError,
                            Bit, Bits, UInt8, UInt16, UInt32,
-                           Enum, String, TimestampUnix32, RawBytes, NullBytes, PaddingBits, PaddingBytes)
+                           Enum, String, TimestampUnix32, RawBytes,
+                           NullBytes, PaddingBits, PaddingBytes, FragmentGroup, CustomFragment)
 from hachoir.core.tools import (humanDuration, humanFilesize)
 from hachoir.core.endian import LITTLE_ENDIAN
 from hachoir.core.text_handler import textHandler
@@ -43,13 +44,16 @@ class DirectoryEntry(FieldSet):
         yield UInt16(self, "rec_len", "Record length")
         yield UInt8(self, "name_len", "Name length")
         yield Enum(UInt8(self, "file_type", "File type"), self.file_type)
-        yield String(self, "name", self["name_len"].value, "File name")
+        if self["name_len"].value > 0:
+            yield String(self, "name", self["name_len"].value, "File name")
         size = (self._size - self.current_size) // 8
         if size:
             yield NullBytes(self, "padding", size)
 
     def createDescription(self):
-        name = self["name"].value.strip("\0")
+        name = None
+        if self["name_len"].value > 0:
+            name = self["name"].value.strip("\0")
         if name:
             return "Directory entry: %s" % name
         else:
@@ -190,16 +194,20 @@ class Inode(FieldSet):
     inode_type_name = {
         1: "list of bad blocks",
         2: "Root directory",
-        3: "ACL inode",
-        4: "ACL inode",
+        3: "User quota inode",
+        4: "Group quota inode",
         5: "Boot loader",
         6: "Undelete directory",
+        7: "Reserved group descriptors",
         8: "EXT3 journal"
     }
-    static_size = (68 + 15 * 4) * 8
 
     def __init__(self, parent, name, index):
         FieldSet.__init__(self, parent, name, None)
+        inode_size = self["/superblock/inode_size"].value
+        if inode_size == 0:
+            inode_size = 128
+        self._size = inode_size * 8
         self.uniq_id = 1 + index
 
     def createDescription(self):
@@ -234,6 +242,18 @@ class Inode(FieldSet):
                 return out + ' (-> %s)' % (self['link_target'].value)
         return out
 
+    def is_fast_symlink(self):
+        acl_addr = self.absolute_address + self.current_size
+        # skip 15 blocks + version field
+        acl_addr += (4 * 15 + 4) * 8
+        acl = self.stream.readBits(acl_addr, 32, self.endian)
+
+        b = 0
+        if acl > 0:
+            b = (2 << self["/superblock/log_block_size"].value)
+
+        return (self['blocks'].value - b == 0)
+
     def createFields(self):
         os = self["/superblock/creator_os"].value
 
@@ -259,7 +279,7 @@ class Inode(FieldSet):
             yield UInt8(self, "dev_minor", "Minor number of the block/char device")
             yield UInt8(self, "dev_major", "Major number of the block/char device")
             yield NullBytes(self, "block_unused", 58)
-        elif filetype == 'l' and self['size'].value <= 60 and self['blocks'].value == 0:
+        elif filetype == 'l' and self.is_fast_symlink():
             yield String(self, "link_target", self['size'].value, "Target filename of this symlink")
             rest = 60 - self['size'].value
             if rest:
@@ -291,6 +311,20 @@ class Inode(FieldSet):
             yield UInt32(self, "author", "Author ID (?)")
         else:
             yield RawBytes(self, "raw", 12, "Reserved")
+
+
+class Directory(Parser):
+    PARSER_TAGS = {
+        "description": "Directory of EXT2/EXT3 file system",
+    }
+    endian = LITTLE_ENDIAN
+
+    def createFields(self):
+        while self.current_size < self.size:
+            yield DirectoryEntry(self, "entry[]")
+
+    def validate(self):
+        return True
 
 
 class Bitmap(FieldSet):
@@ -651,11 +685,19 @@ class Group(SeekableFieldSet):
             if inode['blocks'].value == 0:
                 continue
             blocks = inode.array('block')
+            if not blocks:
+                continue
+            if inode['mode/file_type'].display == 'Directory':
+                parser = Directory
+            else:
+                parser = None
+            group = FragmentGroup(parser=parser)
             for b in range(12):
                 if not blocks[b].value:
                     continue
                 self.seekBlock(blocks[b].value)
-                yield RawBytes(self, "inode[%d]block[]" % i, self.root.block_size)
+                yield CustomFragment(self, "inode[%d]block[]" % i, self.root.block_size * 8,
+                                     None, group=group)
             if blocks[12].value:
                 # indirect block
                 self.seekBlock(blocks[12].value)
@@ -665,7 +707,8 @@ class Group(SeekableFieldSet):
                     if not b.value:
                         continue
                     self.seekBlock(b.value)
-                    yield RawBytes(self, "inode[%d]block[]" % i, self.root.block_size)
+                    yield CustomFragment(self, "inode[%d]block[]" % i, self.root.block_size * 8,
+                                         None, group=group)
             if blocks[13].value:
                 # TODO: double-indirect block
                 pass
@@ -709,9 +752,12 @@ class EXT2_FS(HachoirParser, RootSeekableFieldSet):
     def validate(self):
         if self.stream.readBytes((1024 + 56) * 8, 2) != b"\x53\xEF":
             return "Invalid magic number"
-        if not(0 <= self["superblock/log_block_size"].value <= 2):
+        if not (0 <= self["superblock/log_block_size"].value <= 2):
             return "Invalid (log) block size"
-        if self["superblock/inode_size"].value not in (0, 128):
+        blocksize = (1 << 10) << self["superblock/log_block_size"].value
+        acceptable_inode_sizes = (s for s in [0, 128, 256, 512, 1024, 2048, 4096]
+                                  if s <= blocksize)
+        if self["superblock/inode_size"].value not in acceptable_inode_sizes:
             return "Unsupported inode size"
         return True
 

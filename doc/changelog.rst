@@ -2,14 +2,188 @@
 Changelog
 +++++++++
 
-hachoir 3.0a2
-=============
+hachoir 3.3.0 (2023-12-12)
+==========================
+
+* Parsers:
+
+  * Add ARJ archive parser. Patch by Oleg Gubanov.
+  * JAVA: Support new features in JDK 9-14.  Mostly, this is support for the
+    new ``invokedynamic`` opcode and supporting constant pool entries.
+  * Ext2/3/4: fix handling of symlink inodes.
+  * PNG: Bump up maximum chunk size heuristic.
+  * PDF: Fix some issues caused by code updated from Python 2 to Python 3.
+  * PYC: add value creation, misc fixes.
+  * LZX: Fix decompression of window refs to Intel jump fixups.
+  * EXE: Support PE32+ optional header.
+  * EXE: Increase default number of sections to handle complex programs.
+  * MP4: Allow QuickTime movies to start with "skip" atom.
+
+* hachoir-wx:
+
+  * Fix compatibility with newer wxPython.
+  * Use system default colours for window and highlight in hex editor.
+
+* Other changes:
+
+  * core: speed up ``str2long()`` significantly by using ``int.from_bytes()``.
+  * Remove Python 2 code.
+  * Port runtests.py to Python 3.12.
+  * Fix documentation build. Remove napoleon extension, it's broken on Python
+    3.11.
+
+hachoir 3.2.0 (2022-11-27)
+==========================
+
+* Fix hachoir-grep command line parsing.
+* PYC parser supports Python 3.12.
+
+hachoir 3.1.3 (2022-04-04)
+==========================
+
+* The development branch ``master`` was renamed to ``main``.
+  See https://sfconservancy.org/news/2020/jun/23/gitbranchname/ for the
+  rationale.
+* Replace Travis CI with GitHub Actions.
+* ttf: Support OpenType magic number (OTTO).
+* hachoir-wx: Load darkdetect and test once, fallback if not found.
+* Add hachoir-wx docs.
+* jpeg: Set the size of a JpegImageData with no terminator to the
+  remaining length in the stream to avoid parsing subfields of the JpegImageData
+  if possible.
+* fit: Add parser of Garmin fit files.
+* lzx: Fix LZX decompression.
+
+hachoir 3.1.2 (2020-02-15)
+==========================
+
+* Fix a SyntaxWarning in the PDF parser.
+
+hachoir 3.1.1 (2020-01-06)
+==========================
+
+* Fix hachoir-wx
+
+hachoir 3.1.0 (2019-10-28)
+==========================
+
+* Add __main__ submodule to urwid, metadata, strip, wx.  It's now possible to
+  run ``python3 -m hachoir.metadata filename`` for example.
+* Remove hachoir.version submodule; add hachoir.VERSION constant.
+
+hachoir 3.0a5 (2019-04-12)
+==========================
+
+* metadata: Fix for calling ``Dict.values`` property from
+  ``MultipleMetadata.iterGroups`` method.
+
+hachoir 3.0a4 (2019-03-21)
+==========================
+
+* Issue #36: Hachoir now requires Python 3.6 or newer.
+* Add "pip install hachoir[urwid]" extra dependency for hachoir-urwi
+* wx: Implement tree view lazy-loading.
+* enhance the documentation
+* urwid: ignore set_focus() error
+* Generate `Field` docs from soure code.
+* ntfs: parse update sequence array.
+* zip: use magic to identify files.
+* elf: reduce duplication of MAGIC
+* fat: handle the common case where root_start = 2 more gracefully
+* tga: Support 32-bit images. Fixes #39.
+* java_serialized: Support serialized proxy classes.
+* java_serialized: fix support for Externalizable classes
+
+hachoir 3.0a3 (2018-06-04)
+==========================
+
+Project renamed from Hachoir3 to Hachoir:
+
+* GitHub project moved from https://github.com/vstinner/hachoir3
+  to https://github.com/vstinner/hachoir
+* Documentation moved from http://hachoir3.readthedocs.io/
+  to http://hachoir.readthedocs.io/
+
+Enhancements:
+
+* Add Canon Raw v2 support
+* Add support for creation date in tiff files
+* tga: improvements to adhere more closely to the spec.
+* Add MacRoman win32 codepage
+* tiff/exif: support SubIFDs and tiled images
+* hachoir.metadata: add ``exportDictionary()`` method
+* java: parse OpcodeCPIndexShort's CPIndex argument properly
+* java: have CPIndex opcodes show argument in display (but not value)
+* java: distinguish CPIndex/CPInfo display from value.
+* java: Create value and display for LineNumberTableEntry
+* Enhance the AR archive parser
+
+Bugfixes:
+
+* Fix ELF parser (on Python 3)
+* Fix LZX substream in CAB parser
+* pdf: Python 3 compatibility, slightly improved parsing
+* rar: fix TypeError on unknown block types
+* mpeg_video: don't attempt to parse Stream past length
+* mpeg_video: parse ESCR correctly, add SCR value
+* ext2: fix directory digging
+
+hachoir 3.0a2 (2017-02-24)
+==========================
+
+Parsers:
+
+* Add initial parser for Mapsforge .map files (only version 3 supported)
+* Add parser for PAK files from "Project: Starfighter" game
+* Add OS X ``.bom`` parser
+* mov parser: add ``traf`` entry
+* Update iTunesDB Parser
+* 7zip: Improve and expand 7zip parser
+* tar: Support ustar prefix field in tar archives.
+* Enhance the Java class parser.
+* Added more field to exif extractor
+* Add WIP Mach-O parser
+* ntfs improvements: parse non-resident runlists
+* ext2: support ext4, massive parser improvements
+
+  Huge changeset that may break backwards compatibility, for better
+  consistency and deeper parsing. Basic rundown:
+
+  - Support many more (new) flags added in ext4 and beyond
+  - Create nice option displays for flags
+  - Improve handling of groups using SeekableFieldSet
+  - Parse (demarcate) inode data blocks
+  - Consistently use lower case for flag names
+
+* Enhance mpeg_ts parser to support MTS/M2TS; add MIME type
+
+New features:
 
 * Python parser supports Python 3.3-3.7 .pyc files.
 * metadata: get comment from ZIP
-* Fix ResourceWarning warnings on files. Add a close() method and support for
-  the context manager protocol ("with obj: ...") to parsers, input and output
-  streams.
+* Support InputIOStream.read(0)
+* Add a close() method and support for the context manager protocol
+  (``with obj: ...``) to parsers, input and output streams.
+* Add more file extensions for PE program parser.
+* ZIP: add MIME type for Android APK, ``.apk`` file.
+* Add editable field for TimestampMac32 type
+
+Bugfixes:
+
+* Issue #2: Fix saving a filed into a file in urwid
+
+  * FileFromInputStream: fix comparison between None and an int
+  * InputIOStream: open the file in binary mode
+
+* Fix OutputStream.writeBits() (was broken since the migration to Python 3)
+* Fix ResourceWarning warnings on files: use the new close() methods and
+  context managers.
+* Fix a few pending warnings on StopIteration.
+* Fixup and relocate hachoir-wx, which now works mostly properly.
+* Fix hachoir-parser matroska SimpleBlock
+* Fix Mac timestamp name
+
+Remove the unmaintained experimental HTTP interface.
 
 hachoir 3.0a1 (2017-01-09)
 ==========================

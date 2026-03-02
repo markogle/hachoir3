@@ -19,7 +19,7 @@ from hachoir.parser.program.exe_ne import NE_Header
 from hachoir.parser.program.exe_pe import PE_Header, PE_OptHeader, SectionHeader
 from hachoir.parser.program.exe_res import PE_Resource, NE_VersionInfoNode
 
-MAX_NB_SECTION = 50
+MAX_NB_SECTION = 100
 
 
 class MSDosHeader(FieldSet):
@@ -65,7 +65,7 @@ class ExeFile(HachoirParser, RootSeekableFieldSet):
         "file_ext": ("exe", "dll", "ocx", "pyd", "scr"),
         "mime": ("application/x-dosexec",),
         "min_size": 64 * 8,
-        # "magic": (("MZ", 0),),
+        # "magic": ((b"MZ", 0),),
         "magic_regex": ((b"MZ.[\0\1].{4}[^\0\1\2\3]", 0),),
         "description": "Microsoft Windows Portable Executable"
     }
