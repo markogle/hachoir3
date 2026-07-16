@@ -1036,99 +1036,6 @@ class HEVCNalUnit(FieldSet):
         yield Bits(self, "nalUnit", self["nalUnitLength"].value)
 
 
-class VPCodecConfigurationBox(FieldSet):
-
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield NullBits(self, "flags", 24)
-        yield UInt8(self, "profile")
-        yield UInt8(self, "level")
-        yield Bits(self, "bit_depth", 4)
-        yield Bits(self, "chroma_subsampling", 3)
-        yield Bit(self, "video_full_range_flag")
-        yield UInt8(self, "colour_primaries")
-        yield UInt8(self, "transfer_characteristics")
-        yield UInt8(self, "matrix_coefficients")
-        yield UInt16(self, "codec_initialization_data_size")
-
-
-class AVCCodecConfigurationBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "configurationVersion")
-        yield UInt8(self, "AVCProfileindication")
-        yield UInt8(self, "profile_compatibility")
-        yield UInt8(self, "AVCLevelIndication")
-        yield PaddingBits(self, "res[]", 6)
-        yield Bits(self, "lengthSizeMinusOne", 2)
-        yield PaddingBits(self, "res[]", 3)
-        yield Bits(self, "numOfSequenceParameterSets", 5)
-        for i in range(self["numOfSequenceParameterSets"].value):
-            yield AVCSequenceParameterSet(self, "sequenceParamaterSet[]")
-        yield UInt8(self, "numOfPictureParameterSets")
-        for i in range(self["numOfPictureParameterSets"].value):
-            yield AVCPictureParameterSet(self, "pictureParameterSet[]")
-
-
-class AVCSequenceParameterSet(FieldSet):
-    def createFields(self):
-        yield UInt16(self, "sequenceParameterSetLength")
-        yield RawBytes(self, "sequenceParameterSetNALUnit", self["sequenceParameterSetLength"].value)
-
-
-class AVCPictureParameterSet(FieldSet):
-    def createFields(self):
-        yield UInt16(self, "pictureParameterSetLength")
-        yield RawBytes(self, "pictureParameterSetNALUnit", self["pictureParameterSetLength"].value)
-
-
-class HEVCCodecConfigurationBox(FieldSet):
-
-    def createFields(self):
-        yield UInt8(self, "configurationVersion")
-        yield Bits(self, "profile_space", 2)
-        yield Bit(self, "tier_flag")
-        yield Bits(self, "profile_idc", 5)
-        yield UInt32(self, "profile_compatibility_indications")
-        yield Bits(self, "constraint_indicator_flags", 48)
-        yield UInt8(self, "level_idc")
-        yield PaddingBits(self, "res[]", 4, pattern=1)
-        yield Bits(self, "min_spatial_segmentation_idc", 12)
-        yield PaddingBits(self, "res[]", 6, pattern=1)
-        yield Bits(self, "parallelismType", 2)
-        yield PaddingBits(self, "res[]", 6, pattern=1)
-        yield Bits(self, "chroma_format_idc", 2)
-        yield PaddingBits(self, "res[]", 5, pattern=1)
-        yield Bits(self, "bit_depth_luma_minus_8", 3)
-        yield PaddingBits(self, "res[]", 5, pattern=1)
-        yield Bits(self, "bit_depth_chroma_minus_8", 3)
-        yield Bits(self, "avgFrameRate", 16)
-        yield Bits(self, "constantFrameRate", 2)
-        yield Bits(self, "numTemporalLayers", 3)
-        yield Bit(self, "temporalIDNested")
-        yield Bits(self, "lengthSizeMinusOne", 2)
-        yield UInt8(self, "numOfArrays")
-        for i in range(self["numOfArrays"].value):
-            yield HEVCNALArray(self, "NAL_arrays[]")
-
-
-class HEVCNALArray(FieldSet):
-
-    def createFields(self):
-        yield Bit(self, "array_completeness")
-        yield Bit(self, "reserved")
-        yield Bits(self, "NAL_unit_type", 6)
-        yield UInt16(self, "numNalus")
-        for i in range(self["numNalus"].value):
-            yield HEVCNalUnit(self, "NAL_units[]")
-
-
-class HEVCNalUnit(FieldSet):
-
-    def createFields(self):
-        yield UInt16(self, "nalUnitLength")
-        yield Bits(self, "nalUnit", self["nalUnitLength"].value)
-
-
 # ISO/IEC 14496-12:2012 8.5.2
 class SampleDescription(FieldSet):
 
@@ -1483,141 +1390,6 @@ class EventMessageInstance(FieldSet):
             yield RawBytes(self, "message_data", size)
 
 
-class ProtectionSystemSpecificHeaderBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield NullBits(self, "flags", 24)
-
-        yield RawBytes(self, "SystemID", 16)
-
-        if self["version"].value > 0:
-            yield UInt32(self, "KID_Count")
-            for i in range(self["KID_Count"].value):
-                yield RawBytes(self, "KID[]", 16)
-
-        yield UInt32(self, "DataSize")
-        yield RawBytes(self, "Data", self["DataSize"].value)
-
-
-# ISO/IEC 14496-12:2012 8.12.1
-class ProtectionSchemeInfoBox(FieldSet):
-    def createFields(self):
-        yield Atom(self, "original_format")
-        if not self.eof:
-            yield Atom(self, "scheme_type_box")
-        if not self.eof:
-            yield Atom(self, "info")
-
-
-# ISO/IEC 14496-12:2012 8.12.2
-class OriginalFormatBox(FieldSet):
-    def createFields(self):
-        yield RawBytes(self, "data_format", 4)
-
-
-# ISO/IEC 14496-12:2012 8.12.5
-class SchemeTypeBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield UInt24(self, "flags")
-        yield RawBytes(self, "scheme_type", 4)
-        yield UInt32(self, "scheme_version")
-        if self["flags"].value & 0x1:
-            yield CString(self, "scheme_uri")
-
-
-# ISO/IEC 14496-12:2012 8.12.6
-class SchemeInformationBox(FieldSet):
-    def createFields(self):
-        yield Atom(self, "scheme_specific_data")
-
-
-
-# ISO/IEC 14496-12:2012 8.16.3
-class SegmentIndexBoxReference(FieldSet):
-    def createFields(self):
-        yield Bit(self, "reference_type")
-        yield Bits(self, "referenced_size", 31)
-        yield UInt32(self, "subsegment_duration")
-        yield Bit(self, "starts_with_SAP")
-        yield Bits(self, "SAP_type", 3)
-        yield Bits(self, "SAP_delta_time", 28)
-
-
-class SegmentIndexBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield NullBits(self, "flags", 24)
-        yield UInt32(self, "reference_ID")
-        yield UInt32(self, "timescale")
-        if self["version"].value == 0:
-            yield UInt32(self, "earliest_presentation_time")
-            yield UInt32(self, "first_offset")
-        else:
-            yield UInt64(self, "earliest_presentation_time")
-            yield UInt64(self, "first_offset")
-        yield NullBits(self, "reserved", 16)
-        yield UInt16(self, "reference_count")
-        for i in range(self["reference_count"].value):
-            yield SegmentIndexBoxReference(self, "reference[]")
-
-
-# ISO/IEC 23001-7:2016 7.2
-class SampleEncryptionItem(FieldSet):
-    def createFields(self):
-        yield RawBytes(self, "IV", 8)  # TODO: Per_Sample_IV_Size
-        if self["../flags"].value & 0x2:
-            yield UInt16(self, "subsample_count")
-            for i in range(self["subsample_count"].value):
-                yield UInt16(self, "BytesOfClearData[]")
-                yield UInt32(self, "ByteOfProtectedData[]")
-
-
-class SampleEncryptionBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield UInt24(self, "flags")
-
-        yield UInt32(self, "sample_count")
-        for i in range(self["sample_count"].value):
-            yield SampleEncryptionItem(self, "sample[]")
-
-
-# ISO/IEC 23001-7:2016 8.1.1
-class ProtectionSystemSpecificHeaderBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield NullBits(self, "flags", 24)
-
-        yield RawBytes(self, "SystemID", 16)
-
-        if self["version"].value > 0:
-            yield UInt32(self, "KID_Count")
-            for i in range(self["KID_Count"].value):
-                yield RawBytes(self, "KID[]", 16)
-
-        yield UInt32(self, "DataSize")
-        yield RawBytes(self, "Data", self["DataSize"].value)
-
-# ISO/IEC 23001-7:2016 8.2
-class TrackEncryptionBox(FieldSet):
-    def createFields(self):
-        yield UInt8(self, "version")
-        yield NullBits(self, "flags", 24)
-        yield NullBits(self, "reserved", 8)
-        if self["version"].value == 0:
-            yield NullBits(self, "reserved2", 8)
-        else:
-            yield Bits(self, "default_crypt_byte_block", 4)
-            yield Bits(self, "default_skip_byte_block", 4)
-        yield UInt8(self, "default_isProtected")
-        yield UInt8(self, "default_Per_sample_IV_Size")
-        yield RawBytes(self, "default_KID", 16)
-        if self["default_isProtected"].value == 1 and self["default_Per_sample_IV_Size"].value == 0:
-            yield UInt8(self, "default_constant_IV_size")
-            yield RawBytes(self, "default_constant_IV", self["default_constant_IV_size"].value)
-
-
 class ProducerReferenceTimeBox(FieldSet):
 
     def createFields(self):
@@ -1817,7 +1589,6 @@ class Atom(FieldSet):
             "mvex": (AtomList, "mvex", "movie extends box"),
                 "mehd": (MovieExtendsHeader, "mehd", "movie extends header"),
                 "trex": (TrackExtends, "trex", "track extends"),
-            "pssh": (ProtectionSystemSpecificHeaderBox, "pssh", "Protection system information"),
             # ipmc: IPMP control
             "pssh": (ProtectionSystemSpecificHeaderBox, "pssh", "Protection system information"),
         "moof": (AtomList, "moof", "movie fragment"),
@@ -1896,18 +1667,11 @@ class Atom(FieldSet):
         "tags": (AtomList, "tags", "File tags"),
         "tseg": (AtomList, "tseg", "tseg"),
         "chpl": (NeroChapters, "chpl", "Nero chapter data"),
-        "sidx": (SegmentIndex, "sidx", "Segment Index"),
         "6D1D9B05-42D5-44E6-80E2-141DAFF757B2": (TrackFragmentExtendedHeader, "tfxd", "track fragment extended header"),
         "emsg": (EventMessage, "emsg", "Event Message"),
         "emib": (EventMessageInstance, "emib", "Event Message Instance"),
         "vpcC": (VPCodecConfigurationBox, "vpcC", "VP codec configuration"),
         "hvcC": (HEVCCodecConfigurationBox, "hvcC", "HEVC codec configuration"),
-        "avcC": (AVCCodecConfigurationBox, "avcC", "AVC codec configuration"),
-        "sinf": (ProtectionSchemeInfoBox, "sinf", "Protection scheme information"),
-        "frma": (OriginalFormatBox, "frma", "original format"),
-        "schm": (SchemeTypeBox, "schm", "scheme type"),
-        "schi": (SchemeInformationBox, "schi", "scheme information"),
-        "tenc": (TrackEncryptionBox, "tenc", "track encryption"),
         "prft": (ProducerReferenceTimeBox, "prft", "producer reference time")
     }  # noqa
     tag_handler = [item[0] for item in tag_info]
